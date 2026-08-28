@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { ensureBootstrap, getHubState } from '@/server/actions/hub';
-import { getSpeciesCatalog, speciesFallback } from '@/server/repo/catalog-client';
+import { getItemCatalog, getSpeciesCatalog, speciesFallback } from '@/server/repo/catalog-client';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { CurrencyBadge } from '@/components/hub/CurrencyBadge';
@@ -32,7 +32,7 @@ export default async function HubPage() {
     );
   }
 
-  const speciesCatalog = await getSpeciesCatalog();
+  const [speciesCatalog, itemCatalog] = await Promise.all([getSpeciesCatalog(), getItemCatalog()]);
   const lookupSpecies = (speciesId: string) => speciesCatalog[speciesId] ?? speciesFallback(speciesId);
 
   const readyTeamCount = hub.team.filter((m) => m && !isHealingNow(m.healingUntil)).length;
@@ -64,6 +64,7 @@ export default async function HubPage() {
               slot={idx as 0 | 1 | 2}
               monster={monster}
               species={monster ? lookupSpecies(monster.speciesId) : null}
+              equippedItem={monster?.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null}
             />
           ))}
         </div>

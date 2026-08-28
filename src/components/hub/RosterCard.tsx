@@ -1,23 +1,30 @@
 import type { Item, MonsterSpecies, OwnedMonster } from '@/lib/game/types';
+import { effectiveStats } from '@/lib/game/stats';
 import { Card } from '@/components/ui/Card';
+import { StatSegmentBar } from '@/components/ui/StatSegmentBar';
+import { XpBar } from '@/components/ui/XpBar';
 import { AssignSlotButtons } from './AssignSlotButtons';
 import { EquipSelect } from './EquipSelect';
 import { HealingCountdown } from './HealingCountdown';
-import { formatRoll, isHealingNow, rarityColorClass, rarityLabel } from './rarity';
+import { isHealingNow, rarityColorClass, rarityLabel } from './rarity';
 
 export function RosterCard({
   monster,
   species,
   equipmentOptions,
   equippedItem,
+  maxPower,
 }: {
   monster: OwnedMonster;
   species: MonsterSpecies | null;
   equipmentOptions: { itemId: string; name: string }[];
   equippedItem: Item | null;
+  /** Roster-wide max power, so this card's stat bar length is comparable to every other card's. */
+  maxPower?: number;
 }) {
   const label = rarityLabel(monster.rolls);
   const isHealing = isHealingNow(monster.healingUntil);
+  const stats = species ? effectiveStats(species, monster, equippedItem) : null;
 
   return (
     <Card className="flex flex-col gap-2">
@@ -28,13 +35,9 @@ export function RosterCard({
         <span className={`text-xs font-semibold ${rarityColorClass(label)}`}>{label}</span>
       </div>
 
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
-        <span>Lv {monster.level}</span>
-        <span>HP {formatRoll(monster.rolls.hp)}</span>
-        <span>ATK {formatRoll(monster.rolls.atk)}</span>
-        <span>DEF {formatRoll(monster.rolls.def)}</span>
-        <span>SPD {formatRoll(monster.rolls.spd)}</span>
-      </div>
+      <XpBar level={monster.level} xp={monster.xp} />
+
+      {stats && <StatSegmentBar stats={stats} maxPower={maxPower} />}
 
       <div className="flex items-center justify-between text-xs text-slate-300">
         <span>{monster.teamSlot !== null ? `Team slot ${monster.teamSlot}` : 'Bench'}</span>

@@ -1,26 +1,21 @@
-import type { MonsterSpecies, OwnedMonster } from '@/lib/game/types';
+import type { Item, MonsterSpecies, OwnedMonster } from '@/lib/game/types';
+import { effectiveStats } from '@/lib/game/stats';
 import { Card } from '@/components/ui/Card';
 import { StatBar } from '@/components/ui/StatBar';
+import { XpBar } from '@/components/ui/XpBar';
 import { HealingCountdown } from './HealingCountdown';
 import { isHealingNow } from './rarity';
-
-// Display-only approximation of max HP (base stat * rolled multiplier *
-// level scaling, matching src/lib/game/stats.ts's effectiveStats formula).
-// Doesn't account for an equipped item's HP modifier, since HubView doesn't
-// pass that through — a smaller remaining approximation gap than before.
-function approxMaxHp(monster: OwnedMonster, species: MonsterSpecies): number {
-  const levelMult = 1 + 0.1 * (monster.level - 1);
-  return Math.floor(species.baseStats.hp * monster.rolls.hp * levelMult);
-}
 
 export function TeamSlotCard({
   slot,
   monster,
   species,
+  equippedItem,
 }: {
   slot: 0 | 1 | 2;
   monster: OwnedMonster | null;
   species: MonsterSpecies | null;
+  equippedItem: Item | null;
 }) {
   if (!monster || !species) {
     return (
@@ -31,7 +26,7 @@ export function TeamSlotCard({
   }
 
   const isHealing = isHealingNow(monster.healingUntil);
-  const hpMax = approxMaxHp(monster, species);
+  const hpMax = effectiveStats(species, monster, equippedItem).hp;
   const hp = monster.currentHp ?? hpMax;
 
   return (
@@ -40,8 +35,8 @@ export function TeamSlotCard({
         <span className="text-sm font-semibold text-slate-100">
           {species.emoji} {species.name}
         </span>
-        <span className="text-xs text-slate-400">Lv {monster.level}</span>
       </div>
+      <XpBar level={monster.level} xp={monster.xp} />
       {isHealing ? (
         <HealingCountdown healingUntil={monster.healingUntil as string} />
       ) : (

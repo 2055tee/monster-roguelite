@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { getHubState } from '@/server/actions/hub';
 import { getItemCatalog, getSpeciesCatalog, speciesFallback } from '@/server/repo/catalog-client';
+import { effectiveStats, power } from '@/lib/game/stats';
 import { Panel } from '@/components/ui/Panel';
 import { RosterCard } from '@/components/hub/RosterCard';
 
@@ -34,6 +35,15 @@ export default async function RosterPage() {
     .filter((entry) => entry.category === 'equipment' && entry.quantity > 0)
     .map((entry) => ({ itemId: entry.itemId, name: entry.name }));
 
+  // Roster-wide max power, so every card's stat bar is comparable in length.
+  const maxPower = hub.roster.reduce((max, monster) => {
+    const species = speciesCatalog[monster.speciesId];
+    if (!species) return max;
+    const equippedItem = monster.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null;
+    const p = power(effectiveStats(species, monster, equippedItem));
+    return Math.max(max, p);
+  }, 0);
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-6">
       <div className="flex items-center justify-between">
@@ -56,6 +66,7 @@ export default async function RosterPage() {
               species={lookupSpecies(monster.speciesId)}
               equipmentOptions={equipmentOptions}
               equippedItem={monster.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null}
+              maxPower={maxPower}
             />
           ))}
         </div>
