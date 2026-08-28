@@ -8,10 +8,18 @@ Solo-dev portfolio web game: single-player monster-catching roguelite. Next.js 1
 
 See `CONTEXT.md` for the original design brief.
 
+## Status / where to pick up next
+
+The Roster/Battle UI overhaul + XP system (see "Shipped" section below) is fully complete, deployed, and live-verified as of the last commit. Nothing is currently in progress. Candidate next steps (none started, none requested yet — check with the user before picking one):
+- Playtest and balance Emberfall Cave / Frostspire Ruins / Voidmaw Depths (tiers 2–4) the same way Verdant Hollow was (see "Verdant Hollow balance").
+- Repro the minified React #418 hydration warning on run→hub navigation in dev mode (see "Known non-blocking issues").
+- Rotate the demo account password before sharing the live link publicly (see Demo login above).
+- `tests/loop.ts` hasn't been re-run since WP3; WP4-WP8 were client-only so it shouldn't be affected, but worth a green run before the next server-side change.
+
 ## Architecture
 
 - All game-state writes are server-authoritative: Next.js server actions (`src/server/actions/*.ts`) use a service-role Supabase client (`src/lib/supabase/admin.ts`). Clients can only `SELECT` their own rows via RLS, never write directly. **This is the core anti-cheat property — don't weaken it.** Every action calls `requireUser()` (`src/server/auth.ts`) and manually verifies row ownership; RLS does not protect writes since the service-role key bypasses it entirely, so the action code itself is the authorization boundary.
-- Game-engine logic (`src/lib/game/*.ts`, excluding `types.ts`/`constants.ts`/`seed-data.ts`) is pure and I/O-free, unit-tested with vitest (20 tests). Safe to extend — run `npm test` after changes.
+- Game-engine logic (`src/lib/game/*.ts`, excluding `types.ts`/`constants.ts`/`seed-data.ts`) is pure and I/O-free, unit-tested with vitest (37 tests). Safe to extend — run `npm test` after changes.
 - `src/server/game-bridge.ts` glues the pure engine to DB rows for the action layer (building `Combatant`s from monster rows, computing team power, assembling `RunView`).
 - RNG is deterministic and persisted: each `dungeon_runs` row has `rng_seed` + `rng_cursor`; every roll (enemy picks, chest drops, catch rolls, stat rolls on catch) advances and persists the cursor, so a run's outcome is reproducible and auditable.
 - Vercel function region is pinned to `sin1` (Singapore, via `vercel.json`) to match Supabase's `ap-southeast-1` region — this was previously defaulting to `iad1` (US East) and added a full trans-Pacific round trip to every server action's DB calls. The action layer still makes several sequential (non-`Promise.all`'d) DB calls per action (e.g. `submitCombatAction`); parallelizing those would further reduce latency but hasn't been done.
@@ -20,8 +28,8 @@ See `CONTEXT.md` for the original design brief.
 
 - `npm test` — unit tests for the pure game engine (fast, no I/O).
 - `npx tsc --noEmit` — typecheck.
-- `npx tsx --env-file=.env.local tests/loop.ts` — integration test against the **live** Supabase project. Drives bootstrap → start run → combat → rest → boss → catch → finish, plus double-start rejection and run-abandon (45 assertions). This bypasses `requireUser()`'s `next/headers` dependency by calling the same repo/game-bridge layer the actions delegate to, with a resolved user id passed in directly — see the file's header comment for why.
-- Run both before every deploy. Both were green as of the last commit.
+- `npx tsx --env-file=.env.local tests/loop.ts` — integration test against the **live** Supabase project. Drives bootstrap → start run → combat → rest → boss → catch → finish, plus double-start rejection, run-abandon, and XP-award/level-up/idempotency checks (50 assertions). This bypasses `requireUser()`'s `next/headers` dependency by calling the same repo/game-bridge layer the actions delegate to, with a resolved user id passed in directly — see the file's header comment for why.
+- Run both before every deploy. Both were green as of the last commit (`npm test`/`tsc` re-confirmed after WP7; `tests/loop.ts` last run during WP3, untouched by WP4-WP8's client-only changes).
 
 ## Game design decisions (v1, load-bearing — not placeholders)
 
