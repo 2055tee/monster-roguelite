@@ -21,25 +21,31 @@ Project ID `nxzzgzozzdejhimbfcmm`, name "monster-roguelite", region ap-southeast
 | WP4 | Hub/roster/inventory UI (`src/app/(game)/hub/**`, `src/components/hub/**`) | ✅ Done (commit `1c19089` — wait, check `git log`, WP4 was `2528f7b`) |
 | WP5 | Dungeon run UI (`src/app/(game)/run/**`, `src/components/run/**`) | ✅ Done (commit `1c19089`) |
 | WP3 | Server actions wiring engine+DB together (`src/server/actions/{hub,run,combat,catch}.ts` real bodies, `src/server/repo/*.ts`) | ✅ Done (commit `d634f7a`) |
-| WP6 | Deploy to Vercel (git-linked project, env vars, Supabase auth redirect URL) + full playwright click-through verification | ⚠️ **BLOCKED ON SESSION RESTART** — see below |
-| — | Write final CLAUDE.md docs | ❌ Not started (this file is a stopgap, not that deliverable) |
+| WP6 | Deploy to Vercel (git-linked project, env vars, Supabase auth redirect URL) + full playwright click-through verification | ⚠️ **DEPLOYED, BUT A P0 COMBAT BUG WAS FOUND** — see below |
+| — | Write final CLAUDE.md docs | ❌ Not started (blocked on the P0 fix below) |
 
-## ⚠️ START HERE: WP6 is next, waiting on a session restart to pick up new MCP tooling
-No code changes are pending — the working tree is clean (WP3's commit `d634f7a` is the last commit). What's blocking WP6 is tooling, not code:
+## ⚠️ START HERE: production is live but combat is broken for a common case
+Deploy succeeded. Live at **https://monster-roguelite.vercel.app**, git-linked to `github.com/2055tee/monster-roguelite` (GitHub App authorized, pushes to `master` auto-deploy). All 3 env vars set in Vercel (production + preview). Supabase Auth redirect URL added for the prod domain.
 
-- This machine has no `gh` CLI and no GitHub MCP server was wired up for this project, so the previous session couldn't create a GitHub repo to git-link into Vercel (Vercel's git-linked deploy path needs a real remote repo; the file-based `deploy_to_vercel` fallback works without one but the user preferred a real git-linked project for CI-on-push).
-- Fixed by running `claude mcp add --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer <token>" -s local` — this reuses the same GitHub PAT already configured for the user's other projects (Factory, Portfolio-Website). Confirmed connected via `claude mcp get github` (✔ Connected).
-- **However, MCP servers only load at session start** — the running session that added it can't see its tools until the user restarts/resumes. The user said they'll restart later and asked to get this file updated first, which is what this section is.
+**But browser click-through verification (real gameplay, not the `tests/loop.ts` shortcut) found a reproducible P0 bug that blocks combat:** submitting any damage-dealing combat action against an enemy that currently has an active "guard" buff from Bulwark fails every time — client shows a 500 from the run page's server action plus a React error #441 (minified; see https://react.dev/errors/441), and the action never applies (no HP change, no new combat log line). This is **not flaky** — reproduced 4 consecutive attempts (different abilities: Strike, Strike, Strike, Strike; also tried Strike/Strike/Strike/Venom Fang against a different unguarded enemy where it eventually got through, suggesting the failure specifically correlates with the guard/Bulwark state, not general flakiness). Self-target and ally-target actions (Mend, Bulwark itself) submit fine every time — only outgoing damage against a guarded target fails.
+
+**Impact:** a real player can get permanently stuck in room 1 of Verdant Hollow (the first, easiest dungeon) as soon as an enemy uses Bulwark, since there's no way to finish it off. This blocks run progression entirely — I could not get far enough to test rest rooms, the boss room, catching, or finishing a run for real. **Boss winnability by a real level-2 team is still unverified** — combat design formulas were never actually exercised end-to-end through the UI.
+
+**Also found while verifying:**
+- The "Try demo account" button on `/login` was broken (pointed at `demo@monsterroguelite.dev` which didn't exist in Supabase Auth) — a teammate/coordinator created that user with `email_confirm: true` mid-session as a fix; demo login now works. Worth double-checking that account's password (`DemoPass123!`) is documented somewhere safe, or rotate it before this becomes a public link.
+- Normal signup rejects `@example.com` addresses as invalid at the Supabase level (fine, expected) but requires real email confirmation — there's no dev/test bypass, so any future scripted signup testing needs either a real inbox or manual `email_confirmed_at` confirmation via SQL against project `nxzzgzozzdejhimbfcmm`.
+- **Hub roster HP display bug**: the team card on `/hub` shows HP as e.g. `47/43` — first number is correct effective max HP (confirmed against the combat screen's own max), but the second number is wrong. Math suggests it's `baseHP * rollMultiplier` *before* the `(1 + 0.10*(level-1))` level-scaling term is applied (e.g. Sprigling: `45 * 0.96 ≈ 43`, vs. the correct `45 * 0.96 * 1.1 ≈ 47`) — so the hub card's "max" is being computed with a different (missing level-scaling) formula than combat uses. Cosmetic only (combat itself uses the correct number) but confusing and worth a real fix.
+- Header currency badge (`🪙 —`) never resolves to a number on any page in this session, while the in-page currency display (e.g. `🪙 0` on the hub) works correctly — looks like the header component reads a different/missing data source.
+- Species names/emoji and item names render correctly everywhere checked (hub team cards, dungeon list, roster page with rarity labels and stat-roll multipliers, inventory) — no blank/fallback states, so `catalog-client.ts`'s live reads are working fine. Not the source of any bug found.
+- Abandon Run works cleanly and does reset/fully-heal the team back to hub state.
 
 **Next session should, in order:**
-1. Confirm the `github` MCP tools are loaded (`ToolSearch` for `mcp__github`, or just try one — e.g. list repos for the authenticated user).
-2. Create a new GitHub repo for this project (ask the user for visibility/name preference if not already decided) and push the current `master` branch to it.
-3. Use the Vercel MCP tools (`create_git_project`, or `deploy_to_vercel` as a fallback) to link/deploy. Team ID / project name: ask the user or check `list_teams` — nothing is pre-decided yet.
-4. Set Vercel env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (values in local `.env.local` — never print/commit the service-role key).
-5. Add the deployed URL to Supabase Auth's redirect allow-list (project `nxzzgzozzdejhimbfcmm`) so auth flows work in production.
-6. Do the **full playwright/browser click-through verification** of the actual game loop against the live deployment — sign up, bootstrap starters, start a run, fight through to the boss, catch attempt, finish, check hub/inventory reflect it. This is the real proof WP6 asked for; don't skip it for just "the build succeeded."
-7. Note in this file whether a real (non-test-shortcut) team can beat the boss — flagged as unverified in the WP3 notes below.
-8. Once WP6 is verified, write the final CLAUDE.md documentation pass (replacing this session-state file with real project docs) — that's the last unchecked row in the table above.
+1. Reproduce the guard/Bulwark combat bug locally (`npm run dev`) by forcing an enemy into a guarded state, or read `src/server/actions/combat.ts` and `src/lib/game/combat.ts` around how the Bulwark guard modifier is applied during damage resolution — this is almost certainly an unhandled exception (null/undefined access) in that path, since `tests/loop.ts`'s scripted AI apparently never triggers it (or works around it via `submitCombatActionDirect`, which WP3's notes already flagged as a divergent code path from the real `combat.ts` action once before).
+2. Fix it, add a regression test/assertion in `tests/loop.ts` or vitest for "damaging attack vs. guarded target," and redeploy (push to `master` auto-deploys via the Vercel git link).
+3. Fix the hub roster HP display formula bug (`src/components/hub/*` or wherever the hub team card computes max HP — align it with whatever `src/lib/game/stats.ts` / combat screen uses).
+4. Investigate and fix the header currency badge not resolving.
+5. Re-run the **full playwright click-through** end-to-end this time — through rest rooms, the boss, a catch attempt, and finish — and **finally answer whether a real level-2 team can beat the boss.**
+6. Only once that's clean, write the final CLAUDE.md documentation pass (replacing this session-state file with real project docs).
 
 ## WP3 completion notes (for context, not action items)
 WP3 was resumed from an interrupted state and finished in a later session. `npx tsc --noEmit` is clean; `tests/loop.ts` (`npx tsx --env-file=.env.local tests/loop.ts`) passes repeatedly against the live Supabase project, exercising bootstrap → start run → combat → rest → boss → catch → finish, plus double-start rejection and run-abandon, with 0 failures across both the full-success path and the early-failure fallback path.
