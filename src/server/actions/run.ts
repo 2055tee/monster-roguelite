@@ -12,7 +12,13 @@ import { getEncounterForRoom, insertEncounter } from '@/server/repo/encounter';
 import { getMonsterRowsByIds, getTeamRows, updateMonster } from '@/server/repo/monster';
 import { getInProgressRun, getRoomResult, getRunRow, insertRoomResult, insertRun, updateRun } from '@/server/repo/run';
 import { grantItem } from '@/server/repo/profile';
-import { buildPlayerCombatants, buildRunView, computeTeamPower, getMaxHpFor } from '@/server/game-bridge';
+import {
+  buildPlayerCombatants,
+  buildRunView,
+  computeTeamPower,
+  getMaxHpFor,
+  resolveHealingForRows,
+} from '@/server/game-bridge';
 
 async function loadOwnedRun(runId: string) {
   const user = await requireUser();
@@ -31,7 +37,7 @@ export async function startRun(dungeonId: string): Promise<{ runId: string } | A
     return { ok: false, error: 'You already have a run in progress.' };
   }
 
-  const teamRows = await getTeamRows(user.id);
+  const teamRows = await resolveHealingForRows(await getTeamRows(user.id));
   if (teamRows.length < 3 || teamRows.some((r) => r.team_slot === null)) {
     return { ok: false, error: 'You need a full team of 3 monsters to start a run.' };
   }

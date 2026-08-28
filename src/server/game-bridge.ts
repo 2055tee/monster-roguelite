@@ -10,7 +10,7 @@ import { effectiveStats, power } from '@/lib/game/stats';
 import { getItemById, getSpeciesById } from '@/server/repo/catalog';
 import { getDungeonById } from '@/server/repo/catalog';
 import { getEncounterForRoom } from '@/server/repo/encounter';
-import { getMonsterRowsByIds, mapMonsterRow, type MonsterRow } from '@/server/repo/monster';
+import { getMonsterRowsByIds, mapMonsterRow, updateMonster, type MonsterRow } from '@/server/repo/monster';
 import type { DungeonRunRow } from '@/server/repo/run';
 
 /** Build a player-side Combatant for a monster row, fetching species+item as needed. */
@@ -49,6 +49,29 @@ export async function getMaxHpFor(row: MonsterRow): Promise<number> {
   const item = row.equipped_item_id ? await getItemById(row.equipped_item_id) : null;
   const owned = mapMonsterRow(row);
   return effectiveStats(species, owned, item).hp;
+}
+
+/**
+ * A monster whose healing timer has already elapsed (or was never scheduled
+ * despite being below max HP -- shouldn't normally happen, but is a dead
+ * end for the player if it does, since skipHealing/useElixir both require an
+ * active healing_until) should just be healed on read rather than staying
+ * stuck forever. Persists the repair and returns the corrected row.
+ */
+export async function resolveHealingForRow(row: MonsterRow): Promise<MonsterRow> {
+  const maxHp = await getMaxHpFor(row);
+  const currentHp = row.current_hp ?? maxHp;
+  if (currentHp >= maxHp) return row;
+
+  const stillHealing = row.healing_until !== null && new Date(row.healing_until).getTime() > Date.now();
+  if (stillHealing) return row;
+
+  await updateMonster(row.id, { current_hp: maxHp, healing_until: null });
+  return { ...row, current_hp: maxHp, healing_until: null };
+}
+
+export async function resolveHealingForRows(rows: MonsterRow[]): Promise<MonsterRow[]> {
+  return Promise.all(rows.map(resolveHealingForRow));
 }
 
 /** Assemble the full RunView for a run row. Does not perform authorization — callers must verify ownership first. */

@@ -24,6 +24,7 @@ import {
   setBootstrapped,
 } from '@/server/repo/profile';
 import { getInProgressRun } from '@/server/repo/run';
+import { resolveHealingForRows } from '@/server/game-bridge';
 
 const STARTER_SPECIES_NAMES = ['Sprigling', 'Cinderpup', 'Pebblet'] as const;
 
@@ -74,7 +75,7 @@ export async function ensureBootstrap(): Promise<void> {
 export async function getHubState(): Promise<HubView> {
   const user = await requireUser();
   const profile = await ensureProfile(user.id);
-  const rosterRows = await getRosterRows(user.id);
+  const rosterRows = await resolveHealingForRows(await getRosterRows(user.id));
   const inventoryRows = await getInventoryRows(user.id);
   const dungeons = await getAllDungeons();
   const activeRun = await getInProgressRun(user.id);
