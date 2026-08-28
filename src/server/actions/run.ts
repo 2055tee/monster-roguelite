@@ -156,7 +156,10 @@ export async function enterRoom(runId: string): Promise<RunView> {
   return buildRunView(refreshed!);
 }
 
-export async function chooseRestOption(runId: string, choice: 'heal' | 'chest'): Promise<RunView> {
+export async function chooseRestOption(
+  runId: string,
+  choice: 'heal' | 'chest'
+): Promise<{ view: RunView; grantedItem: { id: string; name: string; category: string } | null }> {
   const { run } = await loadOwnedRun(runId);
   if (run.status !== 'in_progress') {
     throw new Error('Run is not in progress');
@@ -174,6 +177,7 @@ export async function chooseRestOption(runId: string, choice: 'heal' | 'chest'):
   }
 
   const teamRows = await getMonsterRowsByIds(run.team_snapshot);
+  let grantedItem: { id: string; name: string; category: string } | null = null;
 
   if (choice === 'heal') {
     for (const row of teamRows) {
@@ -197,12 +201,16 @@ export async function chooseRestOption(runId: string, choice: 'heal' | 'chest'):
       choice: 'chest',
       itemId,
     });
+    const item = items.find((i) => i.id === itemId);
+    if (item) {
+      grantedItem = { id: item.id, name: item.name, category: item.category };
+    }
   }
 
   await updateRun(run.id, { current_room_index: run.current_room_index + 1 });
 
   const refreshed = await getRunRow(run.id);
-  return buildRunView(refreshed!);
+  return { view: await buildRunView(refreshed!), grantedItem };
 }
 
 export async function abandonRun(runId: string): Promise<ActionResult> {

@@ -19,16 +19,20 @@ type RestViewProps = {
 
 export function RestView({ runId, team, busy, runAction, onContinue }: RestViewProps) {
   const [confirmChoice, setConfirmChoice] = useState<'heal' | 'chest' | null>(null);
-  const [result, setResult] = useState<{ before: OwnedMonster[]; after: RunView } | null>(null);
+  const [result, setResult] = useState<{
+    before: OwnedMonster[];
+    after: RunView;
+    grantedItem: { id: string; name: string; category: string } | null;
+  } | null>(null);
 
   async function confirm() {
     if (!confirmChoice) return;
     const choice = confirmChoice;
     setConfirmChoice(null);
     const before = team;
-    const after = await runAction(() => chooseRestOption(runId, choice));
-    if (after) {
-      setResult({ before, after });
+    const outcome = await runAction(() => chooseRestOption(runId, choice));
+    if (outcome) {
+      setResult({ before, after: outcome.view, grantedItem: outcome.grantedItem });
     }
   }
 
@@ -44,7 +48,13 @@ export function RestView({ runId, team, busy, runAction, onContinue }: RestViewP
     return (
       <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
         <Panel title="Rest Site Result">
-          {anyHealed ? (
+          {result.grantedItem ? (
+            <p className="text-sm text-slate-300">
+              You opened the chest and found{' '}
+              <strong className="text-amber-300">{result.grantedItem.name}</strong>
+              {result.grantedItem.category === 'equipment' ? ' (equipment)' : ' (consumable)'}!
+            </p>
+          ) : anyHealed ? (
             <ul className="flex flex-col gap-1 text-sm">
               {hpDiffs.map(({ monster, delta }) => (
                 <li key={monster.id}>
@@ -53,7 +63,7 @@ export function RestView({ runId, team, busy, runAction, onContinue }: RestViewP
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-300">You opened the chest and found something useful.</p>
+            <p className="text-sm text-slate-300">Nothing happened.</p>
           )}
         </Panel>
         <Button onClick={() => onContinue(result.after)}>Continue</Button>
