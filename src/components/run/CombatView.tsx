@@ -157,30 +157,30 @@ export function CombatView({
                 )}
               </div>
 
-              {!pendingAbility && (
-                <div className="flex flex-wrap gap-2">
-                  {activeCombatant.abilities.map((abilityId) => {
-                    const def = getAbility(abilityId);
-                    const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
-                    const disabled = busy || cooldown > 0;
-                    return (
-                      <Button
-                        key={abilityId}
-                        variant="secondary"
-                        disabled={disabled}
-                        onMouseEnter={() => setFocusedAbility(abilityId)}
-                        onMouseLeave={() => setFocusedAbility(null)}
-                        onFocus={() => setFocusedAbility(abilityId)}
-                        onBlur={() => setFocusedAbility(null)}
-                        onClick={() => handleAbilityClick(activeCombatant, abilityId)}
-                      >
-                        {def.name}
-                        {cooldown > 0 ? ` (CD ${cooldown})` : ''}
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {activeCombatant.abilities.map((abilityId) => {
+                  const def = getAbility(abilityId);
+                  const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
+                  const disabled = busy || cooldown > 0;
+                  const isPending = abilityId === pendingAbility;
+                  return (
+                    <Button
+                      key={abilityId}
+                      variant="secondary"
+                      disabled={disabled}
+                      className={isPending ? 'ring-2 ring-amber-400' : ''}
+                      onMouseEnter={() => setFocusedAbility(abilityId)}
+                      onMouseLeave={() => setFocusedAbility(null)}
+                      onFocus={() => setFocusedAbility(abilityId)}
+                      onBlur={() => setFocusedAbility(null)}
+                      onClick={() => handleAbilityClick(activeCombatant, abilityId)}
+                    >
+                      {def.name}
+                      {cooldown > 0 ? ` (CD ${cooldown})` : ''}
+                    </Button>
+                  );
+                })}
+              </div>
 
               <div className="min-h-[2.75rem] rounded-md border border-slate-700 bg-slate-800/40 p-2 text-xs text-slate-300">
                 {pendingAbility
