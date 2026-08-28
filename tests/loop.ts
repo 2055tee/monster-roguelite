@@ -29,6 +29,7 @@ import { computeExpectedTurns } from '../src/lib/game/dungeon';
 import { power, effectiveStats } from '../src/lib/game/stats';
 import { createRng } from '../src/lib/game/rng';
 import { computeCatchChance, computePerformance, rollChest } from '../src/lib/game/catch';
+import { applyXp, roomXp } from '../src/lib/game/xp';
 import type { Combatant, LogEntry, OwnedMonster } from '../src/lib/game/types';
 
 import { getAllDungeons, getAllItems, getDungeonById, getItemByName, getSpeciesById, getSpeciesByName } from '../src/server/repo/catalog';
@@ -52,7 +53,7 @@ import {
   grantItem,
   setBootstrapped,
 } from '../src/server/repo/profile';
-import { getEncounterForRoom, insertEncounter, updateEncounter } from '../src/server/repo/encounter';
+import { getEncounterForRoom, getEncountersForRun, insertEncounter, updateEncounter } from '../src/server/repo/encounter';
 import { getInProgressRun, getRoomResult, getRunRow, insertRoomResult, insertRun, updateRun } from '../src/server/repo/run';
 import { buildPlayerCombatants, buildRunView, computeTeamPower, getMaxHpFor } from '../src/server/game-bridge';
 
@@ -530,6 +531,7 @@ async function testCatchAndFinish(userId: string, runId: string) {
     const before = await getProfile(userId);
     const result = await finishRunDirect(runId);
     assert(result.gold === 0, 'failed run awards 0 gold');
+    assert(result.xpAwarded >= 0, `failed run xpAwarded is non-negative (${result.xpAwarded})`);
     const after = await getProfile(userId);
     assert(after?.currency === before?.currency, 'currency unchanged on failed run');
     return;
@@ -561,20 +563,38 @@ async function testCatchAndFinish(userId: string, runId: string) {
   const lureAfter = invAfter.find((r) => r.item_id === lureBait.itemId);
   assert(!lureAfter, 'Lure Bait consumed (quantity reached 0 and row removed)');
 
+  const teamBefore = await getMonsterRowsByIds(run.team_snapshot);
   const before = await getProfile(userId);
   const finishResult = await finishRunDirect(runId);
   assert(finishResult.gold === dungeon.goldReward, `finishRun awarded dungeon gold (${finishResult.gold})`);
   const after = await getProfile(userId);
   assert(after!.currency === before!.currency + dungeon.goldReward, 'profile currency incremented by gold reward');
 
+  assert(finishResult.xpAwarded > 0, `finishRun awarded xp (${finishResult.xpAwarded})`);
+  const teamAfterXp = await getMonsterRowsByIds(run.team_snapshot);
+  const oneBefore = teamBefore[0];
+  const oneAfter = teamAfterXp.find((m) => m.id === oneBefore.id)!;
+  assert(
+    oneAfter.xp !== oneBefore.xp || oneAfter.level > oneBefore.level,
+    `team monster xp/level advanced from finishRun's award (Lv${oneBefore.level}/${oneBefore.xp}xp -> Lv${oneAfter.level}/${oneAfter.xp}xp)`
+  );
+
   const finalRun = await getRunRow(runId);
   assert(finalRun?.status === 'completed', 'run marked completed');
+  assert(finalRun?.xp_awarded === finishResult.xpAwarded, 'run row persists the xp_awarded amount');
 
-  // Idempotency: calling finishRun again should not double-award gold.
+  // Idempotency: calling finishRun again should not double-award gold or xp.
   const secondFinish = await finishRunDirect(runId);
   assert(secondFinish.gold === dungeon.goldReward, 'second finishRun call is idempotent on gold');
+  assert(secondFinish.xpAwarded === finishResult.xpAwarded, 'second finishRun call is idempotent on xp');
   const afterSecond = await getProfile(userId);
   assert(afterSecond!.currency === after!.currency, 'currency not double-awarded on repeat finishRun');
+  const teamAfterSecond = await getMonsterRowsByIds(run.team_snapshot);
+  const oneAfterSecond = teamAfterSecond.find((m) => m.id === oneBefore.id)!;
+  assert(
+    oneAfterSecond.xp === oneAfter.xp && oneAfterSecond.level === oneAfter.level,
+    'xp/level not double-awarded on repeat finishRun'
+  );
 }
 
 async function getCatchPreviewDirect(runId: string) {
@@ -674,32 +694,66 @@ async function finishRunDirect(runId: string) {
     const healing = teamRows
       .filter((r) => r.healing_until && new Date(r.healing_until).getTime() > Date.now())
       .map((r) => ({ monsterId: r.id, until: r.healing_until as string }));
-    return { gold: run.gold_awarded, healing };
+    return { gold: run.gold_awarded, healing, xpAwarded: run.xp_awarded, levelUps: [] as { monsterId: string; from: number; to: number }[] };
   }
 
   const dungeon = await getDungeonById(run.dungeon_id);
   let goldAwarded = run.gold_awarded;
-  if (run.status === 'in_progress') {
+  const finalStatus = run.status === 'in_progress' ? 'completed' : 'failed';
+  if (finalStatus === 'completed') {
     goldAwarded = dungeon.goldReward;
-    await updateRun(run.id, { status: 'completed', completed_at: new Date().toISOString(), gold_awarded: goldAwarded });
-    await adjustCurrency(run.owner_id, goldAwarded);
-  } else if (run.status === 'failed') {
+  } else {
     goldAwarded = 0;
-    await updateRun(run.id, { completed_at: new Date().toISOString(), gold_awarded: 0 });
   }
 
+  const lastIndex = dungeon.roomLayout.length - 1;
+  const encounters = await getEncountersForRun(run.id);
+  const wonXp = encounters
+    .filter((e) => e.status === 'won')
+    .reduce((sum, e) => {
+      const isBoss = e.room_index === lastIndex && dungeon.roomLayout[lastIndex] === 'boss';
+      const roomLevel = isBoss ? dungeon.enemyLevel + 3 : dungeon.enemyLevel;
+      return sum + roomXp(roomLevel, isBoss);
+    }, 0);
+  const xpAwarded = Math.floor(wonXp * (finalStatus === 'completed' ? 1.5 : 1));
+
+  await updateRun(run.id, {
+    status: finalStatus,
+    completed_at: new Date().toISOString(),
+    gold_awarded: goldAwarded,
+    xp_awarded: xpAwarded,
+  });
+  if (goldAwarded > 0) await adjustCurrency(run.owner_id, goldAwarded);
+
   const teamRows = await getMonsterRowsByIds(run.team_snapshot);
+  const levelUps: { monsterId: string; from: number; to: number }[] = [];
   const healing: { monsterId: string; until: string }[] = [];
+
   for (const row of teamRows) {
-    const maxHp = await getMaxHpFor(row);
-    const currentHp = row.current_hp ?? maxHp;
+    let workingRow = row;
+    if (xpAwarded > 0) {
+      const oldMaxHp = await getMaxHpFor(row);
+      const { level: newLevel, xp: newXp, levelsGained } = applyXp(row.level, row.xp, xpAwarded);
+      let newCurrentHp = row.current_hp;
+      if (levelsGained > 0) {
+        workingRow = { ...row, level: newLevel };
+        const newMaxHp = await getMaxHpFor(workingRow);
+        newCurrentHp = row.current_hp === null ? null : row.current_hp + (newMaxHp - oldMaxHp);
+        levelUps.push({ monsterId: row.id, from: row.level, to: newLevel });
+      }
+      await updateMonster(row.id, { level: newLevel, xp: newXp, current_hp: newCurrentHp });
+      workingRow = { ...workingRow, level: newLevel, xp: newXp, current_hp: newCurrentHp };
+    }
+
+    const maxHp = await getMaxHpFor(workingRow);
+    const currentHp = workingRow.current_hp ?? maxHp;
     if (currentHp < maxHp) {
-      const until = new Date(Date.now() + row.level * 5 * 1000).toISOString();
+      const until = new Date(Date.now() + Math.min(workingRow.level, 12) * 5 * 1000).toISOString();
       await updateMonster(row.id, { healing_until: until });
       healing.push({ monsterId: row.id, until });
     }
   }
-  return { gold: goldAwarded, healing };
+  return { gold: goldAwarded, healing, xpAwarded, levelUps };
 }
 
 async function testDoubleStartRejectedAndAbandon(userId: string) {

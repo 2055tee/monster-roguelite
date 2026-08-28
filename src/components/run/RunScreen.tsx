@@ -17,6 +17,8 @@ type SummaryData = {
   gold: number;
   healing: { monsterId: string; until: string }[];
   catchOutcome: { success: boolean; monster?: OwnedMonster } | null;
+  xpAwarded: number;
+  levelUps: { monsterId: string; from: number; to: number }[];
 };
 
 type RunScreenProps = {
@@ -70,10 +72,21 @@ export function RunScreen({ runId, initialView, initialError, speciesCatalog }: 
   }
 
   function handleCatchComplete(
-    finish: { gold: number; healing: { monsterId: string; until: string }[] },
+    finish: {
+      gold: number;
+      healing: { monsterId: string; until: string }[];
+      xpAwarded: number;
+      levelUps: { monsterId: string; from: number; to: number }[];
+    },
     catchOutcome: { success: boolean; monster?: OwnedMonster } | null
   ) {
-    setSummary({ gold: finish.gold, healing: finish.healing, catchOutcome });
+    setSummary({
+      gold: finish.gold,
+      healing: finish.healing,
+      catchOutcome,
+      xpAwarded: finish.xpAwarded,
+      levelUps: finish.levelUps,
+    });
     setShowCatch(false);
   }
 
@@ -102,6 +115,8 @@ export function RunScreen({ runId, initialView, initialError, speciesCatalog }: 
         catchOutcome={summary.catchOutcome}
         team={view.team}
         speciesCatalog={speciesCatalog}
+        xpAwarded={summary.xpAwarded}
+        levelUps={summary.levelUps}
       />
     );
   }

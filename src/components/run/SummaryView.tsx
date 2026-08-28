@@ -13,15 +13,39 @@ type SummaryViewProps = {
   catchOutcome: { success: boolean; monster?: OwnedMonster } | null;
   team: OwnedMonster[];
   speciesCatalog: Record<string, MonsterSpecies>;
+  xpAwarded: number;
+  levelUps: { monsterId: string; from: number; to: number }[];
 };
 
-export function SummaryView({ gold, healing, catchOutcome, team, speciesCatalog }: SummaryViewProps) {
+export function SummaryView({
+  gold,
+  healing,
+  catchOutcome,
+  team,
+  speciesCatalog,
+  xpAwarded,
+  levelUps,
+}: SummaryViewProps) {
   const router = useRouter();
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
       <Panel title="Run Complete">
         <p className="mb-2 text-lg font-semibold text-amber-300">🪙 {gold} gold earned</p>
+        {xpAwarded > 0 && <p className="mb-2 text-sm text-emerald-300">✨ +{xpAwarded} XP for every team member</p>}
+        {levelUps.length > 0 && (
+          <ul className="mb-2 flex flex-col gap-0.5 text-sm text-emerald-200">
+            {levelUps.map((lu) => {
+              const monster = team.find((m) => m.id === lu.monsterId);
+              const label = monster ? speciesName(monster.speciesId, speciesCatalog) : 'A monster';
+              return (
+                <li key={lu.monsterId}>
+                  🎉 {label} reached Lv {lu.to}!
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
         {catchOutcome && (
           <p className="mb-2 text-sm text-slate-300">

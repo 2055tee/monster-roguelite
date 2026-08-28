@@ -26,6 +26,14 @@ export async function getEncounterForRoom(runId: string, roomIndex: number): Pro
   return (data as CombatEncounterRow | null) ?? null;
 }
 
+/** All encounters for a run, used by finishRun to sum XP for every won room. */
+export async function getEncountersForRun(runId: string): Promise<CombatEncounterRow[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from('combat_encounters').select('*').eq('run_id', runId);
+  if (error) throw new Error(`Failed to load encounters for run ${runId}: ${error.message}`);
+  return (data as CombatEncounterRow[]) ?? [];
+}
+
 export async function insertEncounter(input: {
   runId: string;
   roomIndex: number;

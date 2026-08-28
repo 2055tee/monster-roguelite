@@ -22,7 +22,12 @@ type CatchViewProps = {
   busy: boolean;
   runAction: <T>(fn: () => Promise<T>) => Promise<T | null>;
   onComplete: (
-    finish: { gold: number; healing: { monsterId: string; until: string }[] },
+    finish: {
+      gold: number;
+      healing: { monsterId: string; until: string }[];
+      xpAwarded: number;
+      levelUps: { monsterId: string; from: number; to: number }[];
+    },
     catchOutcome: CatchResult | null
   ) => void;
   speciesCatalog: Record<string, MonsterSpecies>;

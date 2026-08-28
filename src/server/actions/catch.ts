@@ -4,9 +4,10 @@ import type { Item, OwnedMonster } from '@/lib/game/types';
 import { computeCatchChance, computePerformance } from '@/lib/game/catch';
 import { createRng } from '@/lib/game/rng';
 import { effectiveStats } from '@/lib/game/stats';
+import { applyXp, roomXp } from '@/lib/game/xp';
 import { requireUser } from '@/server/auth';
 import { getAllItems, getDungeonById, getSpeciesById } from '@/server/repo/catalog';
-import { getEncounterForRoom } from '@/server/repo/encounter';
+import { getEncounterForRoom, getEncountersForRun } from '@/server/repo/encounter';
 import {
   getMonsterRowsByIds,
   insertMonster,
@@ -14,6 +15,7 @@ import {
   rollAbilities,
   rollStatMultipliers,
   updateMonster,
+  type MonsterRow,
 } from '@/server/repo/monster';
 import { adjustCurrency, consumeItem, getInventoryRows } from '@/server/repo/profile';
 import { getRunRow, updateRun, type DungeonRunRow } from '@/server/repo/run';
@@ -168,9 +170,12 @@ export async function attemptCatch(
   return { chance, roll, success, monster };
 }
 
-export async function finishRun(
-  runId: string
-): Promise<{ gold: number; healing: { monsterId: string; until: string }[] }> {
+export async function finishRun(runId: string): Promise<{
+  gold: number;
+  healing: { monsterId: string; until: string }[];
+  xpAwarded: number;
+  levelUps: { monsterId: string; from: number; to: number }[];
+}> {
   const user = await requireUser();
   const run = await getRunRow(runId);
   if (!run || run.owner_id !== user.id) {
@@ -183,36 +188,76 @@ export async function finishRun(
     const healing = teamRows
       .filter((r) => r.healing_until && new Date(r.healing_until).getTime() > Date.now())
       .map((r) => ({ monsterId: r.id, until: r.healing_until as string }));
-    return { gold: run.gold_awarded, healing };
+    return { gold: run.gold_awarded, healing, xpAwarded: run.xp_awarded, levelUps: [] };
   }
 
   const dungeon = await getDungeonById(run.dungeon_id);
   let goldAwarded = run.gold_awarded;
+  let finalStatus: 'completed' | 'failed';
 
   if (run.status === 'in_progress') {
+    finalStatus = 'completed';
     goldAwarded = dungeon.goldReward;
-    await updateRun(run.id, {
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      gold_awarded: goldAwarded,
-    });
-    await adjustCurrency(run.owner_id, goldAwarded);
-  } else if (run.status === 'failed') {
+  } else {
+    finalStatus = 'failed';
     goldAwarded = 0;
-    await updateRun(run.id, { completed_at: new Date().toISOString(), gold_awarded: 0 });
+  }
+
+  // XP: full amount to every team monster for each *won* room's encounter
+  // (rest rooms have no combat_encounters row and award nothing), scaled up
+  // 1.5x on a full clear. See CLAUDE.md's XP design for the rationale.
+  const lastIndex = dungeon.roomLayout.length - 1;
+  const encounters = await getEncountersForRun(run.id);
+  const wonXp = encounters
+    .filter((e) => e.status === 'won')
+    .reduce((sum, e) => {
+      const isBoss = e.room_index === lastIndex && dungeon.roomLayout[lastIndex] === 'boss';
+      const roomLevel = isBoss ? dungeon.enemyLevel + 3 : dungeon.enemyLevel;
+      return sum + roomXp(roomLevel, isBoss);
+    }, 0);
+  const xpAwarded = Math.floor(wonXp * (finalStatus === 'completed' ? 1.5 : 1));
+
+  await updateRun(run.id, {
+    status: finalStatus,
+    completed_at: new Date().toISOString(),
+    gold_awarded: goldAwarded,
+    xp_awarded: xpAwarded,
+  });
+  if (goldAwarded > 0) {
+    await adjustCurrency(run.owner_id, goldAwarded);
   }
 
   const teamRows = await getMonsterRowsByIds(run.team_snapshot);
+  const levelUps: { monsterId: string; from: number; to: number }[] = [];
   const healing: { monsterId: string; until: string }[] = [];
+
   for (const row of teamRows) {
-    const maxHp = await getMaxHpFor(row);
-    const currentHp = row.current_hp ?? maxHp;
+    let workingRow: MonsterRow = row;
+
+    if (xpAwarded > 0) {
+      const oldMaxHp = await getMaxHpFor(row);
+      const { level: newLevel, xp: newXp, levelsGained } = applyXp(row.level, row.xp, xpAwarded);
+      let newCurrentHp = row.current_hp;
+
+      if (levelsGained > 0) {
+        workingRow = { ...row, level: newLevel };
+        const newMaxHp = await getMaxHpFor(workingRow);
+        newCurrentHp = row.current_hp === null ? null : row.current_hp + (newMaxHp - oldMaxHp);
+        levelUps.push({ monsterId: row.id, from: row.level, to: newLevel });
+      }
+
+      await updateMonster(row.id, { level: newLevel, xp: newXp, current_hp: newCurrentHp });
+      workingRow = { ...workingRow, level: newLevel, xp: newXp, current_hp: newCurrentHp };
+    }
+
+    const maxHp = await getMaxHpFor(workingRow);
+    const currentHp = workingRow.current_hp ?? maxHp;
     if (currentHp < maxHp) {
-      const until = new Date(Date.now() + row.level * 5 * 1000).toISOString();
+      const until = new Date(Date.now() + Math.min(workingRow.level, 12) * 5 * 1000).toISOString();
       await updateMonster(row.id, { healing_until: until });
       healing.push({ monsterId: row.id, until });
     }
   }
 
-  return { gold: goldAwarded, healing };
+  return { gold: goldAwarded, healing, xpAwarded, levelUps };
 }

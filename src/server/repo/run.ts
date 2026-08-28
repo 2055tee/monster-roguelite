@@ -22,6 +22,7 @@ export type DungeonRunRow = {
   catch_succeeded: boolean | null;
   caught_monster_id: string | null;
   gold_awarded: number;
+  xp_awarded: number;
 };
 
 export async function getRunRow(runId: string): Promise<DungeonRunRow | null> {
