@@ -194,7 +194,7 @@ export const SEED_DUNGEONS: Dungeon[] = [
     id: DUNGEON_IDS['Verdant Hollow'],
     name: 'Verdant Hollow',
     difficultyTier: 1,
-    enemyLevel: 1,
+    enemyLevel: 0,
     bossSpeciesId: SPECIES_IDS.Thornmaw,
     baseCatchRate: 0.6,
     goldReward: 20,
