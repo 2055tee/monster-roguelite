@@ -108,7 +108,7 @@ export async function enterRoom(runId: string): Promise<RunView> {
     enemyCombatants.push(buildEnemy(bossSpecies, dungeon.enemyLevel + 3, true));
   } else {
     const pool = dungeon.enemySpeciesIds;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < dungeon.enemiesPerRoom; i++) {
       const idx = Math.min(pool.length - 1, Math.floor(rng.next() * pool.length));
       const species = await getSpeciesById(pool[idx]);
       enemyCombatants.push(buildEnemy(species, dungeon.enemyLevel, false));

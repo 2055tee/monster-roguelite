@@ -50,6 +50,7 @@ export type Dungeon = {
   goldReward: number;
   enemySpeciesIds: string[];
   roomLayout: RoomType[];
+  enemiesPerRoom: number;
 };
 
 export type RoomType = 'combat' | 'rest' | 'boss';

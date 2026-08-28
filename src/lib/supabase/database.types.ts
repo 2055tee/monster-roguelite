@@ -159,6 +159,7 @@ export type Database = {
           created_at: string
           description: string | null
           difficulty_tier: number
+          enemies_per_room: number
           enemy_level: number
           enemy_species_ids: string[]
           gold_reward: number
@@ -172,6 +173,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           difficulty_tier: number
+          enemies_per_room?: number
           enemy_level?: number
           enemy_species_ids?: string[]
           gold_reward?: number
@@ -185,6 +187,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           difficulty_tier?: number
+          enemies_per_room?: number
           enemy_level?: number
           enemy_species_ids?: string[]
           gold_reward?: number

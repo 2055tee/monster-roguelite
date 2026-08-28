@@ -39,6 +39,7 @@ type DungeonRow = {
   gold_reward: number;
   enemy_species_ids: string[];
   room_layout: string[];
+  enemies_per_room: number;
 };
 
 function mapSpecies(row: SpeciesRow): MonsterSpecies {
@@ -76,6 +77,7 @@ function mapDungeon(row: DungeonRow): Dungeon {
     goldReward: row.gold_reward,
     enemySpeciesIds: row.enemy_species_ids ?? [],
     roomLayout: (row.room_layout ?? []) as Dungeon['roomLayout'],
+    enemiesPerRoom: row.enemies_per_room,
   };
 }
 

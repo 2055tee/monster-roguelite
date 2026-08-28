@@ -205,6 +205,7 @@ export const SEED_DUNGEONS: Dungeon[] = [
       SPECIES_IDS.Zaplet,
     ],
     roomLayout: DEFAULT_ROOM_LAYOUT,
+    enemiesPerRoom: 1,
   },
   {
     id: DUNGEON_IDS['Emberfall Cave'],
@@ -221,6 +222,7 @@ export const SEED_DUNGEONS: Dungeon[] = [
       SPECIES_IDS.Zaplet,
     ],
     roomLayout: DEFAULT_ROOM_LAYOUT,
+    enemiesPerRoom: 2,
   },
   {
     id: DUNGEON_IDS['Frostspire Ruins'],
@@ -232,6 +234,7 @@ export const SEED_DUNGEONS: Dungeon[] = [
     goldReward: 80,
     enemySpeciesIds: [SPECIES_IDS.Thornmaw, SPECIES_IDS.Emberfang],
     roomLayout: DEFAULT_ROOM_LAYOUT,
+    enemiesPerRoom: 2,
   },
   {
     id: DUNGEON_IDS['Voidmaw Depths'],
@@ -243,5 +246,6 @@ export const SEED_DUNGEONS: Dungeon[] = [
     goldReward: 140,
     enemySpeciesIds: [SPECIES_IDS.Thornmaw, SPECIES_IDS.Emberfang],
     roomLayout: DEFAULT_ROOM_LAYOUT,
+    enemiesPerRoom: 2,
   },
 ];

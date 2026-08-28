@@ -218,7 +218,7 @@ async function buildEnemiesForRoom(dungeon: Awaited<ReturnType<typeof getDungeon
     const bossSpecies = await getSpeciesById(dungeon.bossSpeciesId);
     enemies.push(buildEnemy(bossSpecies, dungeon.enemyLevel + 3, true));
   } else {
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < dungeon.enemiesPerRoom; i++) {
       const idx = Math.min(dungeon.enemySpeciesIds.length - 1, Math.floor(rng.next() * dungeon.enemySpeciesIds.length));
       const species = await getSpeciesById(dungeon.enemySpeciesIds[idx]);
       enemies.push(buildEnemy(species, dungeon.enemyLevel, false));
@@ -405,7 +405,12 @@ async function testEnterRoomAndCombat(userId: string, runId: string) {
   await enterRoomDirect(runId);
   const encounter = await getEncounterForRoom(runId, 0);
   assert(!!encounter, 'encounter created for room 0');
-  assert(encounter?.state.combatants.length === 5, 'encounter has 3 players + 2 enemies');
+  const run = await getRunRow(runId);
+  const dungeon = await getDungeonById(run!.dungeon_id);
+  assert(
+    encounter?.state.combatants.length === 3 + dungeon.enemiesPerRoom,
+    `encounter has 3 players + ${dungeon.enemiesPerRoom} enemies`
+  );
 
   const outcome = await resolveRoomCombat(runId);
   assert(outcome === 'won' || outcome === 'lost', `room 0 resolved (${outcome})`);
