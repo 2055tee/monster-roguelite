@@ -152,7 +152,7 @@ export function CombatView({
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {['basic_attack', ...activeCombatant.abilities].map((abilityId) => {
+                  {activeCombatant.abilities.map((abilityId) => {
                     const def = getAbility(abilityId);
                     const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
                     const disabled = busy || cooldown > 0;

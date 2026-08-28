@@ -27,7 +27,7 @@ export async function buildPlayerCombatant(row: MonsterRow): Promise<Combatant> 
     level: row.level,
     stats,
     currentHp: row.current_hp ?? stats.hp,
-    abilities: row.abilities ?? [],
+    abilities: ['basic_attack', ...(row.abilities ?? [])],
     cooldowns: {},
     effects: {},
   };

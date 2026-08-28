@@ -180,7 +180,11 @@ export function buildEnemy(species: MonsterSpecies, level: number, isBoss: boole
     };
   }
 
-  const abilities = [species.signatureAbility, ...(species.abilityPool[0] ? [species.abilityPool[0]] : [])];
+  const abilities = [
+    'basic_attack',
+    species.signatureAbility,
+    ...(species.abilityPool[0] ? [species.abilityPool[0]] : []),
+  ];
 
   return {
     id: `enemy-${species.name}-${Math.random().toString(36).slice(2, 8)}`,

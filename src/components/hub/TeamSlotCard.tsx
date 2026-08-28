@@ -4,12 +4,13 @@ import { StatBar } from '@/components/ui/StatBar';
 import { HealingCountdown } from './HealingCountdown';
 import { isHealingNow } from './rarity';
 
-// Display-only approximation of max HP (base stat * rolled multiplier).
-// The authoritative max-HP formula (including level scaling) lives in the
-// game engine (src/lib/game/stats.ts, owned by another work package) and
-// isn't exposed via HubView, so this is a reasonable UI-only estimate.
+// Display-only approximation of max HP (base stat * rolled multiplier *
+// level scaling, matching src/lib/game/stats.ts's effectiveStats formula).
+// Doesn't account for an equipped item's HP modifier, since HubView doesn't
+// pass that through — a smaller remaining approximation gap than before.
 function approxMaxHp(monster: OwnedMonster, species: MonsterSpecies): number {
-  return Math.round(species.baseStats.hp * monster.rolls.hp);
+  const levelMult = 1 + 0.1 * (monster.level - 1);
+  return Math.floor(species.baseStats.hp * monster.rolls.hp * levelMult);
 }
 
 export function TeamSlotCard({
