@@ -20,7 +20,7 @@ export function RosterCard({
 }: {
   monster: OwnedMonster;
   species: MonsterSpecies | null;
-  equipmentOptions: { itemId: string; name: string }[];
+  equipmentOptions: Item[];
   equippedItem: Item | null;
   /** Roster-wide max power, so this card's stat bar length is comparable to every other card's. */
   maxPower?: number;

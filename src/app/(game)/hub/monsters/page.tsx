@@ -31,9 +31,12 @@ export default async function RosterPage() {
   const [speciesCatalog, itemCatalog] = await Promise.all([getSpeciesCatalog(), getItemCatalog()]);
   const lookupSpecies = (speciesId: string) => speciesCatalog[speciesId] ?? speciesFallback(speciesId);
 
+  // Full Item objects (not just id/name) so the equip preview can compute a
+  // real effectiveStats diff before the user commits to a selection.
   const equipmentOptions = hub.inventory
     .filter((entry) => entry.category === 'equipment' && entry.quantity > 0)
-    .map((entry) => ({ itemId: entry.itemId, name: entry.name }));
+    .map((entry) => itemCatalog[entry.itemId])
+    .filter((item): item is NonNullable<typeof item> => !!item);
 
   // Roster-wide max power, so every card's stat bar is comparable in length.
   const maxPower = hub.roster.reduce((max, monster) => {

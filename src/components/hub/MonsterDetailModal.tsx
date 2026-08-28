@@ -1,6 +1,9 @@
+'use client';
+
+import { useState } from 'react';
+
 import { getAbility } from '@/lib/game/abilities';
-import { effectiveStats } from '@/lib/game/stats';
-import { power } from '@/lib/game/stats';
+import { effectiveStats, power } from '@/lib/game/stats';
 import type { Item, MonsterSpecies, OwnedMonster, Stats } from '@/lib/game/types';
 import { Modal } from '@/components/ui/Modal';
 import { XpBar } from '@/components/ui/XpBar';
@@ -28,12 +31,19 @@ export function MonsterDetailModal({
   monster: OwnedMonster;
   species: MonsterSpecies | null;
   equippedItem: Item | null;
-  equipmentOptions: { itemId: string; name: string }[];
+  equipmentOptions: Item[];
 }) {
+  const [previewItemId, setPreviewItemId] = useState<string | null>(equippedItem?.id ?? null);
+
   const label = rarityLabel(monster.rolls);
   const isHealing = isHealingNow(monster.healingUntil);
   const preItem = species ? effectiveStats(species, monster, null) : null;
   const final = species ? effectiveStats(species, monster, equippedItem) : null;
+
+  const previewItem = previewItemId ? equipmentOptions.find((i) => i.id === previewItemId) ?? null : null;
+  const isPreviewingChange = previewItemId !== (equippedItem?.id ?? null);
+  const previewStats = isPreviewingChange && species ? effectiveStats(species, monster, previewItem) : null;
+
   const abilityIds = ['basic_attack', ...monster.abilities];
 
   return (
@@ -69,8 +79,12 @@ export function MonsterDetailModal({
                   {STAT_ORDER.map(({ key, label: statLabel }) => {
                     const itemAffectsThis =
                       equippedItem?.effect.type === 'stat_pct' && equippedItem.effect.stat === key;
+                    const delta = previewStats ? previewStats[key] - final[key] : 0;
                     return (
-                      <tr key={key} className="border-t border-slate-800">
+                      <tr
+                        key={key}
+                        className={`border-t border-slate-800 ${delta !== 0 ? 'bg-indigo-950/30' : ''}`}
+                      >
                         <td className="py-1 pr-2 font-medium text-slate-200">{statLabel}</td>
                         <td className="py-1 pr-2">{species?.baseStats[key] ?? '—'}</td>
                         <td className="py-1 pr-2">{formatRoll(monster.rolls[key])}</td>
@@ -80,7 +94,15 @@ export function MonsterDetailModal({
                             ? `${equippedItem.effect.value >= 0 ? '+' : ''}${Math.round(equippedItem.effect.value * 100)}%`
                             : '—'}
                         </td>
-                        <td className="py-1 pr-2 font-semibold text-slate-100">{final[key]}</td>
+                        <td className="py-1 pr-2 font-semibold text-slate-100">
+                          {previewStats ? previewStats[key] : final[key]}
+                          {delta !== 0 && (
+                            <span className={delta > 0 ? 'ml-1 text-emerald-400' : 'ml-1 text-red-400'}>
+                              ({delta > 0 ? '+' : ''}
+                              {delta})
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -88,7 +110,22 @@ export function MonsterDetailModal({
               </table>
             </div>
             <p className="mt-2 text-xs text-slate-400">
-              Power: <span className="font-semibold text-slate-200">{Math.round(power(final))}</span>
+              Power:{' '}
+              <span className="font-semibold text-slate-200">
+                {Math.round(power(previewStats ?? final))}
+              </span>
+              {previewStats && (
+                <span
+                  className={
+                    Math.round(power(previewStats)) - Math.round(power(final)) >= 0
+                      ? 'ml-1 text-emerald-400'
+                      : 'ml-1 text-red-400'
+                  }
+                >
+                  ({Math.round(power(previewStats)) - Math.round(power(final)) >= 0 ? '+' : ''}
+                  {Math.round(power(previewStats)) - Math.round(power(final))})
+                </span>
+              )}
             </p>
           </div>
         )}
@@ -127,7 +164,12 @@ export function MonsterDetailModal({
           <p className="text-xs font-semibold text-slate-400">Team slot</p>
           <AssignSlotButtons monsterId={monster.id} currentSlot={monster.teamSlot} />
           <p className="mt-1 text-xs font-semibold text-slate-400">Equipped item</p>
-          <EquipSelect monsterId={monster.id} equippedItemId={monster.equippedItemId} options={equipmentOptions} />
+          <EquipSelect
+            monsterId={monster.id}
+            equippedItemId={monster.equippedItemId}
+            options={equipmentOptions}
+            onPreviewChange={setPreviewItemId}
+          />
         </div>
       </div>
     </Modal>
