@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Panel } from '@/components/ui/Panel';
 import { chooseRestOption } from '@/server/actions/run';
-import { formatSpeciesName } from './format';
-import type { OwnedMonster, RunView } from '@/lib/game/types';
+import { speciesName } from './format';
+import type { MonsterSpecies, OwnedMonster, RunView } from '@/lib/game/types';
 
 type RestViewProps = {
   runId: string;
@@ -15,9 +15,10 @@ type RestViewProps = {
   busy: boolean;
   runAction: <T>(fn: () => Promise<T>) => Promise<T | null>;
   onContinue: (view: RunView) => void;
+  speciesCatalog: Record<string, MonsterSpecies>;
 };
 
-export function RestView({ runId, team, busy, runAction, onContinue }: RestViewProps) {
+export function RestView({ runId, team, busy, runAction, onContinue, speciesCatalog }: RestViewProps) {
   const [confirmChoice, setConfirmChoice] = useState<'heal' | 'chest' | null>(null);
   const [result, setResult] = useState<{
     before: OwnedMonster[];
@@ -58,7 +59,7 @@ export function RestView({ runId, team, busy, runAction, onContinue }: RestViewP
             <ul className="flex flex-col gap-1 text-sm">
               {hpDiffs.map(({ monster, delta }) => (
                 <li key={monster.id}>
-                  {formatSpeciesName(monster.speciesId)}: {delta > 0 ? `+${delta} HP` : 'no change'}
+                  {speciesName(monster.speciesId, speciesCatalog)}: {delta > 0 ? `+${delta} HP` : 'no change'}
                 </li>
               ))}
             </ul>

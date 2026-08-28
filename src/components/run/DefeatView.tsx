@@ -6,14 +6,18 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { finishRun } from '@/server/actions/catch';
+import { speciesName } from './format';
+import type { MonsterSpecies, OwnedMonster } from '@/lib/game/types';
 
 type DefeatViewProps = {
   runId: string;
   busy: boolean;
   runAction: <T>(fn: () => Promise<T>) => Promise<T | null>;
+  team: OwnedMonster[];
+  speciesCatalog: Record<string, MonsterSpecies>;
 };
 
-export function DefeatView({ runId, busy, runAction }: DefeatViewProps) {
+export function DefeatView({ runId, busy, runAction, team, speciesCatalog }: DefeatViewProps) {
   const router = useRouter();
   const [finished, setFinished] = useState(false);
   const [healing, setHealing] = useState<{ monsterId: string; until: string }[]>([]);
@@ -38,11 +42,15 @@ export function DefeatView({ runId, busy, runAction }: DefeatViewProps) {
         </p>
         {finished && healing.length > 0 && (
           <ul className="mt-3 flex flex-col gap-1 text-xs text-slate-400">
-            {healing.map((h) => (
-              <li key={h.monsterId}>
-                Monster {h.monsterId} healing until {new Date(h.until).toLocaleString()}
-              </li>
-            ))}
+            {healing.map((h) => {
+              const monster = team.find((m) => m.id === h.monsterId);
+              const label = monster ? speciesName(monster.speciesId, speciesCatalog) : 'Monster';
+              return (
+                <li key={h.monsterId}>
+                  {label} healing until {new Date(h.until).toLocaleString()}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Panel>

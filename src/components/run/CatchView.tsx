@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { attemptCatch, finishRun, getCatchPreview } from '@/server/actions/catch';
-import { formatPct, formatSpeciesName } from './format';
-import type { OwnedMonster } from '@/lib/game/types';
+import { formatPct, speciesName } from './format';
+import type { MonsterSpecies, OwnedMonster } from '@/lib/game/types';
 
 type CatchPreview = {
   performance: number;
@@ -25,9 +25,10 @@ type CatchViewProps = {
     finish: { gold: number; healing: { monsterId: string; until: string }[] },
     catchOutcome: CatchResult | null
   ) => void;
+  speciesCatalog: Record<string, MonsterSpecies>;
 };
 
-export function CatchView({ runId, busy, runAction, onComplete }: CatchViewProps) {
+export function CatchView({ runId, busy, runAction, onComplete, speciesCatalog }: CatchViewProps) {
   const [preview, setPreview] = useState<CatchPreview | null>(null);
   const [selectedLures, setSelectedLures] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<CatchResult | null>(null);
@@ -132,7 +133,7 @@ export function CatchView({ runId, busy, runAction, onComplete }: CatchViewProps
         <Panel title="Catch Result">
           {result.success ? (
             <p className="text-sm text-emerald-300">
-              Success! You caught {result.monster ? formatSpeciesName(result.monster.speciesId) : 'the monster'}
+              Success! You caught {result.monster ? speciesName(result.monster.speciesId, speciesCatalog) : 'the monster'}
               {result.monster ? ` (Lv${result.monster.level})` : ''}.
             </p>
           ) : (

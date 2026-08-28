@@ -11,7 +11,7 @@ import { RestView } from './RestView';
 import { CatchView } from './CatchView';
 import { DefeatView } from './DefeatView';
 import { SummaryView } from './SummaryView';
-import type { OwnedMonster, RunView } from '@/lib/game/types';
+import type { MonsterSpecies, OwnedMonster, RunView } from '@/lib/game/types';
 
 type SummaryData = {
   gold: number;
@@ -23,9 +23,10 @@ type RunScreenProps = {
   runId: string;
   initialView: RunView | null;
   initialError: string | null;
+  speciesCatalog: Record<string, MonsterSpecies>;
 };
 
-export function RunScreen({ runId, initialView, initialError }: RunScreenProps) {
+export function RunScreen({ runId, initialView, initialError, speciesCatalog }: RunScreenProps) {
   const router = useRouter();
   const [view, setView] = useState<RunView | null>(initialView);
   const [error, setError] = useState<string | null>(initialError);
@@ -95,7 +96,13 @@ export function RunScreen({ runId, initialView, initialError }: RunScreenProps) 
 
   if (summary) {
     return (
-      <SummaryView gold={summary.gold} healing={summary.healing} catchOutcome={summary.catchOutcome} />
+      <SummaryView
+        gold={summary.gold}
+        healing={summary.healing}
+        catchOutcome={summary.catchOutcome}
+        team={view.team}
+        speciesCatalog={speciesCatalog}
+      />
     );
   }
 
@@ -116,9 +123,21 @@ export function RunScreen({ runId, initialView, initialError }: RunScreenProps) 
       )}
 
       {isDefeat ? (
-        <DefeatView runId={runId} busy={busy} runAction={runAction} />
+        <DefeatView
+          runId={runId}
+          busy={busy}
+          runAction={runAction}
+          team={view.team}
+          speciesCatalog={speciesCatalog}
+        />
       ) : showCatch ? (
-        <CatchView runId={runId} busy={busy} runAction={runAction} onComplete={handleCatchComplete} />
+        <CatchView
+          runId={runId}
+          busy={busy}
+          runAction={runAction}
+          onComplete={handleCatchComplete}
+          speciesCatalog={speciesCatalog}
+        />
       ) : view.status !== 'in_progress' ? (
         <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-4 p-8 text-center">
           <p className="text-slate-300">This run has already ended ({view.status}).</p>
@@ -135,7 +154,14 @@ export function RunScreen({ runId, initialView, initialError }: RunScreenProps) 
           onRoomCleared={handleRoomCleared}
         />
       ) : view.roomLayout[view.currentRoomIndex] === 'rest' ? (
-        <RestView runId={runId} team={view.team} busy={busy} runAction={runAction} onContinue={setView} />
+        <RestView
+          runId={runId}
+          team={view.team}
+          busy={busy}
+          runAction={runAction}
+          onContinue={setView}
+          speciesCatalog={speciesCatalog}
+        />
       ) : (
         <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-4 p-8 text-center">
           <p className="text-slate-300">

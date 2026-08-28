@@ -1,5 +1,6 @@
 import { requireUser } from '@/server/auth';
 import { getRunState } from '@/server/actions/run';
+import { getSpeciesCatalog } from '@/server/repo/catalog-client';
 import { RunScreen } from '@/components/run/RunScreen';
 import type { RunView } from '@/lib/game/types';
 
@@ -20,7 +21,14 @@ export default async function RunPage({
     initialError = err instanceof Error ? err.message : 'Failed to load run.';
   }
 
+  const speciesCatalog = await getSpeciesCatalog();
+
   return (
-    <RunScreen runId={runId} initialView={initialView} initialError={initialError} />
+    <RunScreen
+      runId={runId}
+      initialView={initialView}
+      initialError={initialError}
+      speciesCatalog={speciesCatalog}
+    />
   );
 }
