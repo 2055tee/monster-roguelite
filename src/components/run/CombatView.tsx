@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { StatBar } from '@/components/ui/StatBar';
 import { getAbility } from '@/lib/game/abilities';
+import { estimateDamageRange } from '@/lib/game/combat';
 import { submitCombatAction } from '@/server/actions/combat';
 import type { Combatant, EncounterState, RunView } from '@/lib/game/types';
 
@@ -44,6 +45,13 @@ export function CombatView({
   const activeId = encounter.order[encounter.orderIndex];
   const activeCombatant = encounter.combatants.find((c) => c.id === activeId) ?? null;
   const isPlayerTurn = !allEnemiesDead && activeCombatant?.side === 'player' && activeCombatant.currentHp > 0;
+  const aliveEnemies = enemies.filter((c) => c.currentHp > 0);
+  // Reference target for showing an ability's damage range before a target is
+  // picked: the same weakest-HP enemy the AI/UI already treats as the default.
+  const referenceEnemy =
+    aliveEnemies.length > 0
+      ? aliveEnemies.reduce((a, b) => (a.currentHp <= b.currentHp ? a : b))
+      : null;
 
   async function handleAbilityClick(actor: Combatant, abilityId: string) {
     const def = getAbility(abilityId);
@@ -163,6 +171,7 @@ export function CombatView({
                   const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
                   const disabled = busy || cooldown > 0;
                   const isPending = abilityId === pendingAbility;
+                  const dmg = referenceEnemy ? estimateDamageRange(activeCombatant, abilityId, referenceEnemy) : null;
                   return (
                     <Button
                       key={abilityId}
@@ -176,19 +185,32 @@ export function CombatView({
                       onClick={() => handleAbilityClick(activeCombatant, abilityId)}
                     >
                       {def.name}
+                      {dmg ? ` · ${dmg.min}–${dmg.max} dmg` : ''}
                       {cooldown > 0 ? ` (CD ${cooldown})` : ''}
                     </Button>
                   );
                 })}
               </div>
 
-              <div className="min-h-[2.75rem] rounded-md border border-slate-700 bg-slate-800/40 p-2 text-xs text-slate-300">
-                {pendingAbility
-                  ? getAbility(pendingAbility).description
-                  : focusedAbility
-                    ? getAbility(focusedAbility).description
-                    : 'Hover or focus a skill to see what it does.'}
-              </div>
+              {(() => {
+                const shownAbilityId = pendingAbility ?? focusedAbility;
+                const shownIsDamage = shownAbilityId ? DAMAGE_KINDS.has(getAbility(shownAbilityId).kind) : false;
+                return (
+                  <div className="min-h-[2.75rem] rounded-md border border-slate-700 bg-slate-800/40 p-2 text-xs text-slate-300">
+                    <p>
+                      {shownAbilityId
+                        ? getAbility(shownAbilityId).description
+                        : 'Hover or focus a skill to see what it does.'}
+                    </p>
+                    {shownIsDamage && referenceEnemy && (
+                      <p className="mt-1 text-slate-500">
+                        Damage shown is estimated vs. {referenceEnemy.name} and varies with the target&apos;s
+                        defense.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <p className="text-sm text-slate-400">Resolving enemy actions...</p>

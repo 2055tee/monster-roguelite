@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildEnemy, initEncounter, resolvePlayerAction, runEnemyTurnsUntilPlayer } from '../../src/lib/game/combat';
+import {
+  buildEnemy,
+  estimateDamageRange,
+  initEncounter,
+  resolvePlayerAction,
+  runEnemyTurnsUntilPlayer,
+} from '../../src/lib/game/combat';
 import { createRng } from '../../src/lib/game/rng';
 import type { Combatant, LogEntry, MonsterSpecies } from '../../src/lib/game/types';
 
@@ -34,6 +40,56 @@ function weakestAliveEnemy(combatants: Combatant[]): Combatant {
   const enemies = combatants.filter((c) => c.side === 'enemy' && c.currentHp > 0);
   return enemies.reduce((a, b) => (a.currentHp <= b.currentHp ? a : b));
 }
+
+describe('estimateDamageRange', () => {
+  it('returns null for non-damage ability kinds', () => {
+    const actor = makePlayer('p1');
+    const target = buildEnemy(weakSpecies, 1, false);
+    expect(estimateDamageRange(actor, 'mend', target)).toBeNull();
+    expect(estimateDamageRange(actor, 'bulwark', target)).toBeNull();
+    expect(estimateDamageRange(actor, 'war_cry', target)).toBeNull();
+  });
+
+  it('bounds every actually-rolled damage roll for a damage ability', () => {
+    const actor = makePlayer('p1');
+    const target = buildEnemy(weakSpecies, 1, false);
+    const range = estimateDamageRange(actor, 'heavy_blow', target);
+    expect(range).not.toBeNull();
+    expect(range!.min).toBeLessThanOrEqual(range!.max);
+
+    // Roll the real formula many times via resolvePlayerAction and confirm every
+    // actual damage dealt falls within [min, max].
+    for (let seed = 0; seed < 30; seed++) {
+      const rng = createRng(seed, 0);
+      const team = [makePlayer('p1'), makePlayer('p2'), makePlayer('p3')];
+      const enemies = [buildEnemy(weakSpecies, 1, false)];
+      let state = initEncounter(team, enemies, rng);
+      while (state.combatants.find((c) => c.id === state.order[state.orderIndex])!.side !== 'player') {
+        const r = runEnemyTurnsUntilPlayer(state, rng);
+        state = r.state;
+      }
+      const actorId = state.order[state.orderIndex];
+      const targetId = state.combatants.find((c) => c.side === 'enemy')!.id;
+      const result = resolvePlayerAction(state, { actorId, abilityId: 'heavy_blow', targetId }, rng);
+      const dealt = result.log.find((entry) => entry.text.includes('Heavy Blow'));
+      expect(dealt).toBeDefined();
+      const match = dealt!.text.match(/for (\d+) damage/);
+      expect(match).not.toBeNull();
+      const damage = Number(match![1]);
+      expect(damage).toBeGreaterThanOrEqual(range!.min);
+      expect(damage).toBeLessThanOrEqual(range!.max);
+    }
+  });
+
+  it('halves the range when the target has an active bulwark guard', () => {
+    const actor = makePlayer('p1');
+    const target = buildEnemy(weakSpecies, 1, false);
+    const guardedTarget = { ...target, effects: { bulwark: 1 } };
+    const normal = estimateDamageRange(actor, 'heavy_blow', target)!;
+    const guarded = estimateDamageRange(actor, 'heavy_blow', guardedTarget)!;
+    expect(guarded.max).toBeLessThan(normal.max);
+  });
+});
 
 describe('full encounter simulation', () => {
   it('terminates (one side reaches 0 total HP) within a bounded number of rounds', () => {

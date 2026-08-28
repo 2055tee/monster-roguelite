@@ -163,6 +163,32 @@ function applyAbility(
   }
 }
 
+/**
+ * Display-only damage range for a damage-kind ability against a target,
+ * using the same formula as applyAbility's 'damage'/'damage_first_strike'/
+ * 'damage_poison' case but with the RNG variance (0.95-1.05) expanded into
+ * a min/max range instead of a single roll. Returns null for non-damage
+ * ability kinds.
+ */
+export function estimateDamageRange(
+  actor: Combatant,
+  abilityId: string,
+  target: Combatant
+): { min: number; max: number } | null {
+  const ability = getAbility(abilityId);
+  if (!ability.kind.startsWith('damage')) return null;
+
+  const raw = actor.stats.atk * ability.power * (100 / (100 + target.stats.def));
+  const atkBuffMult = actor.effects.warcry ? 1.25 : 1;
+  const defensiveMult = target.effects.bulwark ? 0.5 : 1;
+  const base = raw * atkBuffMult * defensiveMult;
+
+  return {
+    min: Math.max(1, Math.round(base * 0.95)),
+    max: Math.max(1, Math.round(base * 1.05)),
+  };
+}
+
 export function buildEnemy(species: MonsterSpecies, level: number, isBoss: boolean): Combatant {
   const rolls = { hp: 1, atk: 1, def: 1, spd: 1 };
   const levelMult = 1 + 0.1 * (level - 1);
