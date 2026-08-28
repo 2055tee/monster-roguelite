@@ -5,6 +5,7 @@ import { getItemCatalog, getSpeciesCatalog, speciesFallback } from '@/server/rep
 import { effectiveStats, power } from '@/lib/game/stats';
 import { Panel } from '@/components/ui/Panel';
 import { RosterCard } from '@/components/hub/RosterCard';
+import { TeamSlotDropZone } from '@/components/hub/TeamSlotDropZone';
 
 export default async function RosterPage() {
   let errorMessage: string | null = null;
@@ -61,17 +62,29 @@ export default async function RosterPage() {
           <p className="text-sm text-slate-500">You don&apos;t own any monsters yet.</p>
         </Panel>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {hub.roster.map((monster) => (
-            <RosterCard
-              key={monster.id}
-              monster={monster}
-              species={lookupSpecies(monster.speciesId)}
-              equipmentOptions={equipmentOptions}
-              equippedItem={monster.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null}
-              maxPower={maxPower}
-            />
-          ))}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[13rem_1fr]">
+          <div className="flex flex-row gap-3 lg:sticky lg:top-6 lg:flex-col lg:self-start">
+            {hub.team.map((monster, idx) => (
+              <TeamSlotDropZone
+                key={idx}
+                slot={idx as 0 | 1 | 2}
+                monster={monster}
+                species={monster ? lookupSpecies(monster.speciesId) : null}
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {hub.roster.map((monster) => (
+              <RosterCard
+                key={monster.id}
+                monster={monster}
+                species={lookupSpecies(monster.speciesId)}
+                equipmentOptions={equipmentOptions}
+                equippedItem={monster.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null}
+                maxPower={maxPower}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

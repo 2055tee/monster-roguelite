@@ -114,7 +114,9 @@ export async function setTeamSlot(monsterId: string, slot: 0 | 1 | 2): Promise<A
   const rosterRows = await getRosterRows(user.id);
   const occupant = rosterRows.find((r) => r.team_slot === slot && r.id !== monsterId);
   if (occupant) {
-    await updateMonster(occupant.id, { team_slot: null });
+    // Swap: the displaced monster takes the dragged monster's old slot
+    // (bench, if it wasn't on the team) instead of always evicting to bench.
+    await updateMonster(occupant.id, { team_slot: monster.team_slot });
   }
 
   await updateMonster(monsterId, { team_slot: slot });

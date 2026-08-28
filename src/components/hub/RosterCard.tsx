@@ -10,6 +10,7 @@ import { XpBar } from '@/components/ui/XpBar';
 import { HealingCountdown } from './HealingCountdown';
 import { MonsterDetailModal } from './MonsterDetailModal';
 import { isHealingNow, rarityColorClass, rarityLabel } from './rarity';
+import { DRAG_MIME } from './TeamSlotDropZone';
 
 export function RosterCard({
   monster,
@@ -35,6 +36,11 @@ export function RosterCard({
       <Card
         role="button"
         tabIndex={0}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(DRAG_MIME, monster.id);
+          e.dataTransfer.effectAllowed = 'move';
+        }}
         onClick={() => setDetailOpen(true)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -42,7 +48,7 @@ export function RosterCard({
             setDetailOpen(true);
           }
         }}
-        className="flex cursor-pointer flex-col gap-2 outline-none transition-colors hover:border-indigo-500 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500"
+        className="flex cursor-grab flex-col gap-2 outline-none transition-colors hover:border-indigo-500 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500 active:cursor-grabbing"
       >
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-slate-100">
@@ -62,7 +68,7 @@ export function RosterCard({
 
         {isHealing ? <HealingCountdown healingUntil={monster.healingUntil as string} /> : null}
 
-        <p className="mt-1 text-center text-[11px] text-slate-500">Click for details →</p>
+        <p className="mt-1 text-center text-[11px] text-slate-500">Click for details, or drag onto a team slot →</p>
       </Card>
 
       <MonsterDetailModal
