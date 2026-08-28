@@ -20,24 +20,36 @@ Project ID `nxzzgzozzdejhimbfcmm`, name "monster-roguelite", region ap-southeast
 | WP2 | Pure game engine: `src/lib/game/{rng,abilities,stats,combat,dungeon,catch,items}.ts` — RNG, damage/turn resolution, catch-chance, expected-turns formulas. 20/20 vitest tests passing, verified zero I/O | ✅ Done (commit `ed03ac0`) |
 | WP4 | Hub/roster/inventory UI (`src/app/(game)/hub/**`, `src/components/hub/**`) | ✅ Done (commit `1c19089` — wait, check `git log`, WP4 was `2528f7b`) |
 | WP5 | Dungeon run UI (`src/app/(game)/run/**`, `src/components/run/**`) | ✅ Done (commit `1c19089`) |
-| **WP3** | **Server actions wiring engine+DB together** (`src/server/actions/{hub,run,combat,catch}.ts` real bodies, `src/server/repo/*.ts`) | ⚠️ **INTERRUPTED MID-FLIGHT, NOT COMMITTED** — see below |
-| WP6 | Deploy to Vercel (git-linked project, env vars, Supabase auth redirect URL) + full playwright click-through verification | ❌ Not started |
+| WP3 | Server actions wiring engine+DB together (`src/server/actions/{hub,run,combat,catch}.ts` real bodies, `src/server/repo/*.ts`) | ✅ Done (commit `d634f7a`) |
+| WP6 | Deploy to Vercel (git-linked project, env vars, Supabase auth redirect URL) + full playwright click-through verification | ⚠️ **BLOCKED ON SESSION RESTART** — see below |
 | — | Write final CLAUDE.md docs | ❌ Not started (this file is a stopgap, not that deliverable) |
 
-## ⚠️ START HERE: WP3 is unfinished, uncommitted work exists in the working tree
-The WP3 agent was stopped mid-task (not failed — just interrupted). Its last message before being killed: *"Let me add a test-only full-heal after each won combat room in `testRunToBoss`, to reliably reach and win the boss room for full-loop coverage."* — i.e. it was in the middle of writing its own integration test, core implementation was likely already drafted.
+## ⚠️ START HERE: WP6 is next, waiting on a session restart to pick up new MCP tooling
+No code changes are pending — the working tree is clean (WP3's commit `d634f7a` is the last commit). What's blocking WP6 is tooling, not code:
 
-**Uncommitted changes sitting in the working tree right now:**
-- Modified: `src/server/actions/{catch,combat,hub,run}.ts` (stub bodies likely replaced with real implementations), `package.json`, `package-lock.json` (probably added `tsx` as a dev dependency for the test script)
-- New/untracked: `src/server/game-bridge.ts`, `src/server/repo/{catalog,encounter,monster,profile,run}.ts`, `tests/loop.ts`
+- This machine has no `gh` CLI and no GitHub MCP server was wired up for this project, so the previous session couldn't create a GitHub repo to git-link into Vercel (Vercel's git-linked deploy path needs a real remote repo; the file-based `deploy_to_vercel` fallback works without one but the user preferred a real git-linked project for CI-on-push).
+- Fixed by running `claude mcp add --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer <token>" -s local` — this reuses the same GitHub PAT already configured for the user's other projects (Factory, Portfolio-Website). Confirmed connected via `claude mcp get github` (✔ Connected).
+- **However, MCP servers only load at session start** — the running session that added it can't see its tools until the user restarts/resumes. The user said they'll restart later and asked to get this file updated first, which is what this section is.
 
-**Do not assume this code is correct or complete.** Next session should:
-1. `git status` / `git diff` to see exactly what's there.
-2. Read through `src/server/actions/*.ts` and `src/server/repo/*.ts` against the spec below (or re-derive intent from the code + the DB schema/engine it calls) to judge whether it's substantively done or half-written.
-3. Run `npx tsc --noEmit` — fix errors.
-4. Try running `tests/loop.ts` (likely via `npx tsx tests/loop.ts`) — it's an integration script meant to drive the full loop (bootstrap → start run → clear rooms → rest choice → boss → catch → finish) directly against the DB, bypassing Next's request-context constraints on server actions.
-5. Once it passes and typechecks, `git add` + commit (only WP3's files: `src/server/actions/**`, `src/server/repo/**`, `tests/loop.ts`, and `package.json`/`package-lock.json` if `tsx` was added).
-6. Mark WP3 done, then proceed to WP6 (Vercel deploy + browser click-through verification of the actual game loop — this is the real proof it works, don't skip it).
+**Next session should, in order:**
+1. Confirm the `github` MCP tools are loaded (`ToolSearch` for `mcp__github`, or just try one — e.g. list repos for the authenticated user).
+2. Create a new GitHub repo for this project (ask the user for visibility/name preference if not already decided) and push the current `master` branch to it.
+3. Use the Vercel MCP tools (`create_git_project`, or `deploy_to_vercel` as a fallback) to link/deploy. Team ID / project name: ask the user or check `list_teams` — nothing is pre-decided yet.
+4. Set Vercel env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (values in local `.env.local` — never print/commit the service-role key).
+5. Add the deployed URL to Supabase Auth's redirect allow-list (project `nxzzgzozzdejhimbfcmm`) so auth flows work in production.
+6. Do the **full playwright/browser click-through verification** of the actual game loop against the live deployment — sign up, bootstrap starters, start a run, fight through to the boss, catch attempt, finish, check hub/inventory reflect it. This is the real proof WP6 asked for; don't skip it for just "the build succeeded."
+7. Note in this file whether a real (non-test-shortcut) team can beat the boss — flagged as unverified in the WP3 notes below.
+8. Once WP6 is verified, write the final CLAUDE.md documentation pass (replacing this session-state file with real project docs) — that's the last unchecked row in the table above.
+
+## WP3 completion notes (for context, not action items)
+WP3 was resumed from an interrupted state and finished in a later session. `npx tsc --noEmit` is clean; `tests/loop.ts` (`npx tsx --env-file=.env.local tests/loop.ts`) passes repeatedly against the live Supabase project, exercising bootstrap → start run → combat → rest → boss → catch → finish, plus double-start rejection and run-abandon, with 0 failures across both the full-success path and the early-failure fallback path.
+
+Two test-script-only fixes were needed along the way (production code was already correct):
+- The team wasn't healed between room 0 (resolved in a separate helper) and room 1, so the scripted test AI reliably lost room 1. Fixed by topping up HP before `testRunToBoss`'s loop starts, matching the top-up already done between other rooms.
+- `submitCombatActionDirect` (the test's mirror of `src/server/actions/combat.ts`'s `submitCombatAction`) wasn't merging/persisting new log entries into the encounter's `log` field — production code does this correctly (see `combat.ts` line ~67); the test mirror was just missing it. Fixed to match.
+- Because the boss (`enemyLevel + 3`, `isBoss: true`) reliably beats the test's simple greedy-AI script even with full HP, `tests/loop.ts` deterministically weakens the boss's HP to 1 right after the boss encounter is created, purely to exercise the catch/finishRun success-path wiring — this is a test-only shortcut and does not reflect real game balance. **Real boss winnability by a level-2 starter team playing well (not the dumb test AI) has not been separately verified** — worth a sanity check during WP6's manual browser click-through.
+
+Next: proceed to WP6 (Vercel deploy + browser click-through verification of the actual game loop).
 
 ## Game design decisions (from the Opus plan — these are final v1 designs, not TODOs)
 Full detail is in the Opus plan output from earlier in the previous session's transcript (not saved to a file — if needed, the specs below are the load-bearing summary; the WP1/WP2 implementations are the authoritative source now).
