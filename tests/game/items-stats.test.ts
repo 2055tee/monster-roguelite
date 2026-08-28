@@ -55,6 +55,7 @@ describe('effectiveStats + power', () => {
     id: 'm1',
     speciesId: 'sprigling',
     level: 6,
+    xp: 0,
     rolls: { hp: 1, atk: 1, def: 1, spd: 1 },
     abilities: ['basic_attack'],
     teamSlot: 0,

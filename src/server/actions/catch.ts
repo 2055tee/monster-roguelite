@@ -136,6 +136,7 @@ export async function attemptCatch(
       id: 'draft',
       speciesId: bossSpecies.id,
       level,
+      xp: 0,
       rolls,
       abilities,
       teamSlot: null,

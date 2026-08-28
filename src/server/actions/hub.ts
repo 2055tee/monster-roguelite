@@ -41,6 +41,7 @@ export async function ensureBootstrap(): Promise<void> {
       id: 'draft',
       speciesId: species.id,
       level: 2,
+      xp: 0,
       rolls,
       abilities,
       teamSlot: slot as 0 | 1 | 2,

@@ -16,6 +16,7 @@ export type OwnedMonster = {
   id: string;
   speciesId: string;
   level: number;
+  xp: number;
   rolls: StatRolls;
   abilities: string[];
   teamSlot: 0 | 1 | 2 | null;

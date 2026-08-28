@@ -83,6 +83,7 @@ export type Database = {
           team_snapshot: Json
           total_expected_turns: number
           total_turns: number
+          xp_awarded: number
         }
         Insert: {
           catch_chance?: number | null
@@ -105,6 +106,7 @@ export type Database = {
           team_snapshot?: Json
           total_expected_turns?: number
           total_turns?: number
+          xp_awarded?: number
         }
         Update: {
           catch_chance?: number | null
@@ -127,6 +129,7 @@ export type Database = {
           team_snapshot?: Json
           total_expected_turns?: number
           total_turns?: number
+          xp_awarded?: number
         }
         Relationships: [
           {
@@ -318,6 +321,7 @@ export type Database = {
           species_id: string
           stats: Json
           team_slot: number | null
+          xp: number
         }
         Insert: {
           abilities?: Json
@@ -332,6 +336,7 @@ export type Database = {
           species_id: string
           stats?: Json
           team_slot?: number | null
+          xp?: number
         }
         Update: {
           abilities?: Json
@@ -346,6 +351,7 @@ export type Database = {
           species_id?: string
           stats?: Json
           team_slot?: number | null
+          xp?: number
         }
         Relationships: [
           {

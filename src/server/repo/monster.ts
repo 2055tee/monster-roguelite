@@ -7,6 +7,7 @@ export type MonsterRow = {
   owner_id: string;
   species_id: string;
   level: number;
+  xp: number;
   stats: { rolls: StatRolls };
   abilities: string[];
   team_slot: 0 | 1 | 2 | null;
@@ -22,6 +23,7 @@ export function mapMonsterRow(row: MonsterRow): OwnedMonster {
     id: row.id,
     speciesId: row.species_id,
     level: row.level,
+    xp: row.xp,
     rolls: row.stats.rolls,
     abilities: row.abilities ?? [],
     teamSlot: row.team_slot,
@@ -126,6 +128,8 @@ export async function updateMonster(
     equipped_item_id: string | null;
     current_hp: number | null;
     healing_until: string | null;
+    level: number;
+    xp: number;
   }>
 ): Promise<void> {
   const admin = createAdminClient();
