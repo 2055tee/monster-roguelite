@@ -142,46 +142,53 @@ export function CombatView({
         <Panel title={isPlayerTurn && activeCombatant ? `${activeCombatant.name}'s Turn` : 'Enemy acting...'}>
           {isPlayerTurn && activeCombatant ? (
             <div className="flex flex-col gap-2">
-              {pendingAbility ? (
-                <div className="flex items-center justify-between rounded-md bg-slate-800 p-2 text-sm text-slate-300">
-                  <span>
-                    Select a target for <strong>{getAbility(pendingAbility).name}</strong>...
-                  </span>
-                  <Button variant="ghost" onClick={() => setPendingAbility(null)} disabled={busy}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap gap-2">
-                    {activeCombatant.abilities.map((abilityId) => {
-                      const def = getAbility(abilityId);
-                      const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
-                      const disabled = busy || cooldown > 0;
-                      return (
-                        <Button
-                          key={abilityId}
-                          variant="secondary"
-                          disabled={disabled}
-                          onMouseEnter={() => setFocusedAbility(abilityId)}
-                          onMouseLeave={() => setFocusedAbility(null)}
-                          onFocus={() => setFocusedAbility(abilityId)}
-                          onBlur={() => setFocusedAbility(null)}
-                          onClick={() => handleAbilityClick(activeCombatant, abilityId)}
-                        >
-                          {def.name}
-                          {cooldown > 0 ? ` (CD ${cooldown})` : ''}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                  <div className="min-h-[2.75rem] rounded-md border border-slate-700 bg-slate-800/40 p-2 text-xs text-slate-300">
-                    {focusedAbility
-                      ? getAbility(focusedAbility).description
-                      : 'Hover or focus a skill to see what it does.'}
-                  </div>
+              <div className="flex items-center justify-between rounded-md bg-slate-800 p-2 text-sm text-slate-300">
+                {pendingAbility ? (
+                  <>
+                    <span>
+                      Select a target for <strong>{getAbility(pendingAbility).name}</strong>...
+                    </span>
+                    <Button variant="ghost" onClick={() => setPendingAbility(null)} disabled={busy}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <span>Select a skill to use.</span>
+                )}
+              </div>
+
+              {!pendingAbility && (
+                <div className="flex flex-wrap gap-2">
+                  {activeCombatant.abilities.map((abilityId) => {
+                    const def = getAbility(abilityId);
+                    const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
+                    const disabled = busy || cooldown > 0;
+                    return (
+                      <Button
+                        key={abilityId}
+                        variant="secondary"
+                        disabled={disabled}
+                        onMouseEnter={() => setFocusedAbility(abilityId)}
+                        onMouseLeave={() => setFocusedAbility(null)}
+                        onFocus={() => setFocusedAbility(abilityId)}
+                        onBlur={() => setFocusedAbility(null)}
+                        onClick={() => handleAbilityClick(activeCombatant, abilityId)}
+                      >
+                        {def.name}
+                        {cooldown > 0 ? ` (CD ${cooldown})` : ''}
+                      </Button>
+                    );
+                  })}
                 </div>
               )}
+
+              <div className="min-h-[2.75rem] rounded-md border border-slate-700 bg-slate-800/40 p-2 text-xs text-slate-300">
+                {pendingAbility
+                  ? getAbility(pendingAbility).description
+                  : focusedAbility
+                    ? getAbility(focusedAbility).description
+                    : 'Hover or focus a skill to see what it does.'}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-slate-400">Resolving enemy actions...</p>
