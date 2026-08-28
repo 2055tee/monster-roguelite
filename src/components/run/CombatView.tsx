@@ -161,6 +161,7 @@ export function CombatView({
                         key={abilityId}
                         variant="secondary"
                         disabled={disabled}
+                        title={def.description}
                         onClick={() => handleAbilityClick(activeCombatant, abilityId)}
                       >
                         {def.name}
