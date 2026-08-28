@@ -31,6 +31,7 @@ export function CombatView({
   onRoomCleared,
 }: CombatViewProps) {
   const [pendingAbility, setPendingAbility] = useState<string | null>(null);
+  const [focusedAbility, setFocusedAbility] = useState<string | null>(null);
   const logEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -151,24 +152,34 @@ export function CombatView({
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-2">
-                  {activeCombatant.abilities.map((abilityId) => {
-                    const def = getAbility(abilityId);
-                    const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
-                    const disabled = busy || cooldown > 0;
-                    return (
-                      <Button
-                        key={abilityId}
-                        variant="secondary"
-                        disabled={disabled}
-                        title={def.description}
-                        onClick={() => handleAbilityClick(activeCombatant, abilityId)}
-                      >
-                        {def.name}
-                        {cooldown > 0 ? ` (CD ${cooldown})` : ''}
-                      </Button>
-                    );
-                  })}
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {activeCombatant.abilities.map((abilityId) => {
+                      const def = getAbility(abilityId);
+                      const cooldown = activeCombatant.cooldowns[abilityId] ?? 0;
+                      const disabled = busy || cooldown > 0;
+                      return (
+                        <Button
+                          key={abilityId}
+                          variant="secondary"
+                          disabled={disabled}
+                          onMouseEnter={() => setFocusedAbility(abilityId)}
+                          onMouseLeave={() => setFocusedAbility(null)}
+                          onFocus={() => setFocusedAbility(abilityId)}
+                          onBlur={() => setFocusedAbility(null)}
+                          onClick={() => handleAbilityClick(activeCombatant, abilityId)}
+                        >
+                          {def.name}
+                          {cooldown > 0 ? ` (CD ${cooldown})` : ''}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <div className="min-h-[2.75rem] rounded-md border border-slate-700 bg-slate-800/40 p-2 text-xs text-slate-300">
+                    {focusedAbility
+                      ? getAbility(focusedAbility).description
+                      : 'Hover or focus a skill to see what it does.'}
+                  </div>
                 </div>
               )}
             </div>
