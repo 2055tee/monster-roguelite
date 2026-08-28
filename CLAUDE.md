@@ -27,7 +27,7 @@ See `CONTEXT.md` for the original design brief.
 
 - **Stats**: hp/atk/def/spd. `effectiveStat = floor(base * rollMultiplier * (1 + 0.10*(level-1)))`, roll multipliers uniform `[0.90,1.10]` per stat, rolled once at catch/starter-grant and immutable after. `power(stats) = hp/5 + atk*2 + def*1.5 + spd`.
 - **Rarity label** (cosmetic, derived from mean of the 4 rolls): `<0.95` Common, `0.95–1.05` Uncommon, `1.05–1.08` Rare, `>1.08` Prime.
-- **Abilities**: every monster = Basic Attack + species signature + 1 rolled from a 3-ability pool. 7 abilities total: `basic_attack, heavy_blow, swift_strike, venom_fang, bulwark, war_cry, mend` — see `src/lib/game/abilities.ts` for power/cooldown/effect values and player-facing descriptions (shown as hover tooltips in combat).
+- **Abilities**: every monster = Basic Attack + species signature + 1 rolled from a 3-ability pool. 7 abilities total: `basic_attack, heavy_blow, swift_strike, venom_fang, bulwark, war_cry, mend` — see `src/lib/game/abilities.ts` for power/cooldown/effect values and player-facing descriptions, shown in `CombatView.tsx`'s dedicated description box (not a hover tooltip — those were hard to see) below the ability buttons, which stay visible with the pending one ring-highlighted even mid target-selection. Damage-kind abilities also show an estimated damage range on their button (`estimateDamageRange` in `combat.ts`), computed against the weakest-HP alive enemy.
 - **Damage formula**: `raw = atk * abilityPower * (100/(100+def))`, `variance = 0.95+rng()*0.10`, modified by War Cry (+25% atk) / Bulwark (-50% incoming) — see `src/lib/game/combat.ts`.
 - **Turn order**: per-round, spd descending, seeded-rng tiebreak, Swift Strike grants next-round priority.
 - **Catch chance**: `chance = clamp(baseCatchRate * performance - 0.10*faintCount + consumableBonus, 0.10, 0.90)`, `performance = clamp(expectedTurns/actualTurns, 0.5, 1.5)`, `expectedTurnsPerRoom = clamp(round(6/(teamPower/bossPower)), 3, 15)`, `totalExpected = expectedTurnsPerRoom * 4` (computed once at run start).
@@ -60,10 +60,38 @@ If Verdant Hollow ever needs re-balancing again (e.g. after other changes), the 
 - **Demo login broken**: `demo@monsterroguelite.dev` (hardcoded in `src/app/login/page.tsx`) didn't exist in Supabase Auth. Created via `auth.admin.createUser` with `email_confirm: true`.
 - **Hub roster HP display**: `TeamSlotCard.tsx`'s `approxMaxHp` was missing the level-scaling term from `stats.ts`'s `effectiveStats` — fixed to match (still doesn't account for an equipped item's HP modifier, a known minor gap).
 - **Header currency badge**: was a hardcoded static `🪙 —` placeholder in `src/app/(game)/layout.tsx`, never wired to real data. Fixed by calling `ensureProfile` and rendering `CurrencyBadge`.
+- **Chest contents hidden**: opening a rest-room chest showed a generic "found something useful" instead of the actual item. `chooseRestOption` (`src/server/actions/run.ts`) now returns `{ view, grantedItem }` and `RestView.tsx` displays the item's real name/category.
+- **UUIDs shown instead of species names**: `formatSpeciesName()` (`src/components/run/format.ts`) assumed `speciesId` was a readable slug like `flame_pup`; species ids are actually DB UUIDs, so it was title-casing UUID fragments (e.g. "B94386f7 5678 4cc7..." instead of "Thornmaw") on the catch result, run-complete summary, defeat screen, and rest-room heal list. Fixed with `speciesName(speciesId, catalog)`, a real catalog lookup threaded down from the run page's `getSpeciesCatalog()` call (`speciesCatalog` prop through `RunScreen` → `CatchView`/`RestView`/`SummaryView`/`DefeatView`); `formatSpeciesName` is now only a last-resort fallback for an id with no catalog entry. The two "Recovering:" lists only had `monsterId`, not `speciesId`, so `SummaryView`/`DefeatView` also take the run's `team` snapshot to resolve `monsterId → speciesId → name`.
+
+## In-progress: Roster/Battle UI overhaul + XP system
+
+Planned by an Opus pass, confirmed with the user, being implemented by Sonnet one work-package at a time (see below for what's done vs. pending). Full plan lives in this section — update the status line after each WP.
+
+**User-confirmed decisions:**
+- Roster "5 stats" = the 4 base stats (HP/ATK/DEF/SPD) as colored segments inside one bar, with total bar length = POWER.
+- XP design below ships as proposed, including fainted monsters getting full XP and the healing-cooldown cap.
+- Drag-and-drop team slots: **both** DnD and the existing Slot 0/1/2 buttons stay (buttons move into a monster-detail modal as the touch/keyboard fallback — HTML5 DnD doesn't work on touchscreens at all).
+- Dragging onto an occupied slot **swaps** the two monsters (not evict-to-bench like today's button behavior).
+
+**XP design (v1, to be implemented in WP2/WP3 — treat as locked once WP3 ships, same as the other formulas in this file):**
+- New pure module `src/lib/game/xp.ts`: `MAX_LEVEL = 20`, `xpToNext(level) = 50 + 25 * (level-1)^2` (L2→3=75, L3→4=150, L4→5=275...).
+- Earned per **cleared** room (read from `combat_encounters` rows with `status='won'` for the run), awarded in full to every monster in `team_snapshot`: `roomXp(roomLevel, isBoss) = round(10 * (1 + 0.15*roomLevel) * (isBoss ? 3 : 1))`, rest rooms award 0, and a full clear (`run.status === 'completed'`) multiplies the summed total by 1.5. Fainted monsters still get full XP (no permadeath philosophy). Abandoned runs award 0 (no `finishRun` call).
+- Applied server-side in `finishRun` (`src/server/actions/catch.ts`) before the existing healing-timer loop: loop level-ups while `xp >= xpToNext(level)`, add the max-HP delta to `current_hp` so leveling doesn't look like fresh damage, then let the healing loop run with the new level.
+- Healing cooldown formula changes from `level * 5` to `min(level, 12) * 5` seconds (caps at 60s) so leveling doesn't make healing punishingly slow.
+- New DB columns (migration 007): `monsters.xp int not null default 0`, `dungeon_runs.xp_awarded int not null default 0`.
+
+**Work packages** (each: `npx tsc --noEmit` → `npm test` → `tests/loop.ts` where noted → commit+push → live Playwright verify → update this file):
+1. ✅ **Turn-order sidebar** (`TurnOrderPanel.tsx`, isolated, no DB) — shows the rest of the current round exactly (`encounter.order` from `orderIndex`), plus a dimmed "next round (est.)" list predicted without the engine's RNG tiebreak (sorted by spd, first-strikers first, ties broken by id — labeled as an estimate since it can't be exact without consuming the real seed). Player = green (`border-emerald-500`), enemy = red (`border-red-500`), current actor ring-highlighted. `CombatView.tsx` restructured to a `lg:grid-cols-[13rem_1fr]` layout, sidebar sticky on desktop, horizontal-scroll strip on mobile.
+2. ⬜ XP data layer + pure engine (migration 007, `xp.ts` + tests, widen `OwnedMonster`/`updateMonster` patch type with `xp`).
+3. ⬜ Award XP on run finish (`finishRun` changes, `getEncountersForRun`, surface `xpAwarded`/level-ups in `SummaryView`), document the XP design as locked once this ships, `tests/loop.ts` assertions.
+4. ⬜ Roster stat model + new `RosterCard` layout (real `effectiveStats`/`power`, `XpBar.tsx`, `StatSegmentBar.tsx`; also fixes `TeamSlotCard.approxMaxHp`'s remaining item-modifier gap now that species+item are threaded through).
+5. ⬜ Monster detail modal (click a roster card → full stat breakdown, abilities, equipped item, slot controls moved in here).
+6. ⬜ Equip preview with affected-stat highlight (hover/pending item in `EquipSelect` recomputes `effectiveStats` locally and highlights the one changed stat segment).
+7. ⬜ Drag-and-drop team slots (native HTML5 DnD, no new dependency; `setTeamSlot` changes from evict to swap; buttons stay as the modal-based fallback).
+8. ⬜ Docs + full live verification pass.
 
 ## Known non-blocking issues
 
-- **Minor display bug**: the rest-room "Heal Team"/"Open Chest" result list and the boss catch/finish screens show raw monster UUIDs instead of species names (e.g. "Caught B94386f7-5678-..." instead of "Caught Thornmaw"). The hub/roster pages resolve names correctly via `catalog-client.ts`'s species lookup — these specific screens (in `src/components/run/`) just don't. Cosmetic, not investigated further; would need to thread a species lookup into those components the way the hub already does.
 - Next.js 16 deprecates `middleware.ts` in favor of `proxy.ts` (build shows a deprecation warning); `middleware.ts` still works fully.
 - ESLint reports a few pre-existing warnings (unused stub params, etc.) — not errors, not blocking.
 - Emberfall Cave / Frostspire Ruins / Voidmaw Depths (tiers 2–4) have not been playtested for winnability — only Verdant Hollow was verified and balanced this session.

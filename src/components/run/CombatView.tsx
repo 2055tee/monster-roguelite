@@ -8,6 +8,7 @@ import { StatBar } from '@/components/ui/StatBar';
 import { getAbility } from '@/lib/game/abilities';
 import { estimateDamageRange } from '@/lib/game/combat';
 import { submitCombatAction } from '@/server/actions/combat';
+import { TurnOrderPanel } from './TurnOrderPanel';
 import type { Combatant, EncounterState, RunView } from '@/lib/game/types';
 
 const DAMAGE_KINDS = new Set(['damage', 'damage_first_strike', 'damage_poison']);
@@ -112,7 +113,10 @@ export function CombatView({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
+    <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-4 p-4 lg:grid-cols-[13rem_1fr]">
+      <TurnOrderPanel encounter={encounter} />
+
+      <div className="flex flex-col gap-4">
       {allEnemiesDead && (
         <div className="rounded-md border border-emerald-500 bg-emerald-900/30 p-4 text-center">
           <p className="mb-3 text-lg font-semibold text-emerald-300">Room Cleared!</p>
@@ -228,6 +232,7 @@ export function CombatView({
           <div ref={logEndRef} />
         </div>
       </Panel>
+      </div>
     </div>
   );
 }
