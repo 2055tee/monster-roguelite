@@ -61,6 +61,7 @@ describe('effectiveStats + power', () => {
     id: 'sprigling',
     name: 'Sprigling',
     emoji: '🌱',
+    element: 'nature',
     baseStats: { hp: 100, atk: 20, def: 15, spd: 10 },
     rarity: 1,
     minTier: 1,

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { ElementBadge } from '@/components/shared/ElementBadge';
 import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
@@ -101,6 +102,7 @@ export function CombatView({
             <SpeciesIcon name={combatant.name} emoji={combatant.emoji} size={22} />
             {combatant.name}{' '}
             <span className="text-xs text-slate-400">Lv{combatant.level}</span>
+            <ElementBadge element={combatant.element} compact />
           </span>
           {isDead && <span className="text-xs font-semibold text-red-400">FAINTED</span>}
         </div>

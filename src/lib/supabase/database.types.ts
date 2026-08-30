@@ -314,6 +314,7 @@ export type Database = {
           ability_pool: Json
           base_stats: Json
           created_at: string
+          element: string
           emoji: string
           id: string
           min_tier: number
@@ -325,6 +326,7 @@ export type Database = {
           ability_pool?: Json
           base_stats?: Json
           created_at?: string
+          element?: string
           emoji?: string
           id?: string
           min_tier?: number
@@ -336,6 +338,7 @@ export type Database = {
           ability_pool?: Json
           base_stats?: Json
           created_at?: string
+          element?: string
           emoji?: string
           id?: string
           min_tier?: number

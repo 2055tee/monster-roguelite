@@ -1,4 +1,5 @@
 import { getAbility } from './abilities';
+import { typeMultiplier } from './elements';
 import type { createRng } from './rng';
 import type { Combatant, EncounterState, LogEntry, MonsterSpecies, Stats } from './types';
 
@@ -115,7 +116,8 @@ function applyAbility(
       const variance = 0.95 + rng.next() * 0.1;
       const atkBuffMult = actor.effects.warcry ? 1.25 : 1;
       const defensiveMult = target.effects.bulwark ? 0.5 : 1;
-      const damage = Math.max(1, Math.round(raw * variance * atkBuffMult * defensiveMult));
+      const typeMult = typeMultiplier(actor.element, target.element);
+      const damage = Math.max(1, Math.round(raw * variance * atkBuffMult * defensiveMult * typeMult));
       target.currentHp = Math.max(0, target.currentHp - damage);
       log.push({
         round,
@@ -181,7 +183,8 @@ export function estimateDamageRange(
   const raw = actor.stats.atk * ability.power * (100 / (100 + target.stats.def));
   const atkBuffMult = actor.effects.warcry ? 1.25 : 1;
   const defensiveMult = target.effects.bulwark ? 0.5 : 1;
-  const base = raw * atkBuffMult * defensiveMult;
+  const typeMult = typeMultiplier(actor.element, target.element);
+  const base = raw * atkBuffMult * defensiveMult * typeMult;
 
   return {
     min: Math.max(1, Math.round(base * 0.95)),
@@ -217,6 +220,7 @@ export function buildEnemy(species: MonsterSpecies, level: number, isBoss: boole
     side: 'enemy',
     name: species.name,
     emoji: species.emoji,
+    element: species.element,
     level,
     stats,
     currentHp: stats.hp,

@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { Dungeon, Item, ItemRarity, MonsterSpecies, Stats } from '@/lib/game/types';
+import type { Dungeon, Element, Item, ItemRarity, MonsterSpecies, Stats } from '@/lib/game/types';
 
 /**
  * Server-side (admin client) catalog reads for species / items / dungeons.
@@ -13,6 +13,7 @@ type SpeciesRow = {
   id: string;
   name: string;
   emoji: string;
+  element: Element;
   base_stats: Stats;
   rarity: number;
   min_tier: number;
@@ -48,6 +49,7 @@ function mapSpecies(row: SpeciesRow): MonsterSpecies {
     id: row.id,
     name: row.name,
     emoji: row.emoji,
+    element: row.element,
     baseStats: row.base_stats,
     rarity: row.rarity,
     minTier: row.min_tier,

@@ -44,6 +44,7 @@ export async function buildPlayerCombatant(row: MonsterRow): Promise<Combatant> 
     side: 'player',
     name: species.name,
     emoji: species.emoji,
+    element: species.element,
     level: row.level,
     stats,
     currentHp: row.current_hp ?? stats.hp,

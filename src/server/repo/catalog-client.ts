@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import type { Item, ItemInstance, ItemRarity, MonsterSpecies, Stats } from '@/lib/game/types';
+import type { Element, Item, ItemInstance, ItemRarity, MonsterSpecies, Stats } from '@/lib/game/types';
 
 /**
  * Read-only catalog lookups for WP4's UI needs.
@@ -24,6 +24,7 @@ type SpeciesRow = {
   id: string;
   name: string;
   emoji: string;
+  element: Element;
   base_stats: Stats;
   rarity: number;
   min_tier: number;
@@ -53,6 +54,7 @@ export async function getSpeciesCatalog(): Promise<Record<string, MonsterSpecies
         id: row.id,
         name: row.name,
         emoji: row.emoji,
+        element: row.element,
         baseStats: row.base_stats,
         rarity: row.rarity,
         minTier: row.min_tier,
@@ -120,6 +122,7 @@ export function speciesFallback(speciesId: string): MonsterSpecies {
     id: speciesId,
     name: speciesId,
     emoji: '❓',
+    element: 'normal',
     baseStats: { hp: 0, atk: 0, def: 0, spd: 0 },
     rarity: 0,
     minTier: 0,

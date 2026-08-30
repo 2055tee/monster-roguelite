@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import type { Item, MonsterSpecies, OwnedMonster } from '@/lib/game/types';
 import { effectiveStats } from '@/lib/game/stats';
+import { ElementBadge } from '@/components/shared/ElementBadge';
 import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import { Card } from '@/components/ui/Card';
 import { StatSegmentBar } from '@/components/ui/StatSegmentBar';
@@ -60,7 +61,10 @@ export function RosterCard({
             <SpeciesIcon name={species?.name ?? ''} emoji={species?.emoji ?? '❓'} size={28} />
             {species?.name ?? monster.speciesId}
           </span>
-          <span className={`text-xs font-semibold ${rarityColorClass(label)}`}>{label}</span>
+          <div className="flex items-center gap-1.5">
+            {species && <ElementBadge element={species.element} compact />}
+            <span className={`text-xs font-semibold ${rarityColorClass(label)}`}>{label}</span>
+          </div>
         </div>
 
         <XpBar level={monster.level} xp={monster.xp} />

@@ -1,10 +1,17 @@
 export type Stats = { hp: number; atk: number; def: number; spd: number };
 export type StatRolls = { hp: number; atk: number; def: number; spd: number };
 
+/**
+ * v1, locked (see GAME_DESIGN.md §4). 5-element cycle (Fire>Nature>Earth>Electric>Water>Fire)
+ * + Normal (neutral to everyone) + Light/Dark (mutual rivalry, neutral to everyone else).
+ */
+export type Element = 'fire' | 'nature' | 'earth' | 'electric' | 'water' | 'normal' | 'light' | 'dark';
+
 export type MonsterSpecies = {
   id: string;
   name: string;
   emoji: string;
+  element: Element;
   baseStats: Stats;
   rarity: number;
   minTier: number;
@@ -74,6 +81,7 @@ export type Combatant = {
   side: 'player' | 'enemy';
   name: string;
   emoji: string;
+  element: Element;
   level: number;
   stats: Stats;
   currentHp: number;

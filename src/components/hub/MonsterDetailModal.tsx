@@ -9,6 +9,7 @@ import { effectValueAtLevel } from '@/lib/game/reforge';
 import { effectiveStats, power } from '@/lib/game/stats';
 import { speciesArtUrl } from '@/lib/game/species-art';
 import type { Item, MonsterSpecies, OwnedMonster, Stats } from '@/lib/game/types';
+import { ElementBadge } from '@/components/shared/ElementBadge';
 import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import { Modal } from '@/components/ui/Modal';
 import { XpBar } from '@/components/ui/XpBar';
@@ -69,6 +70,7 @@ export function MonsterDetailModal({
           <SpeciesIcon name={species?.name ?? ''} emoji={species?.emoji ?? '❓'} size={26} />
           {species?.name ?? monster.speciesId}{' '}
           <span className={`text-xs font-semibold ${rarityColorClass(label)}`}>{label}</span>
+          {species && <ElementBadge element={species.element} compact />}
         </span>
       }
     >
