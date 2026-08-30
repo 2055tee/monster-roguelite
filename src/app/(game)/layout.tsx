@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { requireUser } from '@/server/auth';
 import { ensureProfile } from '@/server/repo/profile';
 import { CurrencyBadge } from '@/components/hub/CurrencyBadge';
+import { ScrapBadge } from '@/components/hub/ScrapBadge';
 import { SignOutButton } from './SignOutButton';
 
 export default async function GameLayout({ children }: { children: ReactNode }) {
@@ -15,6 +16,14 @@ export default async function GameLayout({ children }: { children: ReactNode }) 
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold">Monster Roguelite</span>
           <CurrencyBadge amount={profile.currency} />
+          <ScrapBadge
+            scrap={{
+              common: profile.scrap_common,
+              rare: profile.scrap_rare,
+              epic: profile.scrap_epic,
+              legendary: profile.scrap_legendary,
+            }}
+          />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-400">{user.email}</span>

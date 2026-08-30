@@ -11,7 +11,7 @@ import { RestView } from './RestView';
 import { CatchView } from './CatchView';
 import { DefeatView } from './DefeatView';
 import { SummaryView } from './SummaryView';
-import type { MonsterSpecies, OwnedMonster, RunView } from '@/lib/game/types';
+import type { MonsterSpecies, OwnedMonster, RunView, ScrapCounts } from '@/lib/game/types';
 
 type SummaryData = {
   gold: number;
@@ -19,6 +19,7 @@ type SummaryData = {
   catchOutcome: { success: boolean; monster?: OwnedMonster } | null;
   xpAwarded: number;
   levelUps: { monsterId: string; from: number; to: number }[];
+  scrapAwarded: ScrapCounts;
 };
 
 type RunScreenProps = {
@@ -77,6 +78,7 @@ export function RunScreen({ runId, initialView, initialError, speciesCatalog }: 
       healing: { monsterId: string; until: string }[];
       xpAwarded: number;
       levelUps: { monsterId: string; from: number; to: number }[];
+      scrapAwarded: ScrapCounts;
     },
     catchOutcome: { success: boolean; monster?: OwnedMonster } | null
   ) {
@@ -86,6 +88,7 @@ export function RunScreen({ runId, initialView, initialError, speciesCatalog }: 
       catchOutcome,
       xpAwarded: finish.xpAwarded,
       levelUps: finish.levelUps,
+      scrapAwarded: finish.scrapAwarded,
     });
     setShowCatch(false);
   }
@@ -117,6 +120,7 @@ export function RunScreen({ runId, initialView, initialError, speciesCatalog }: 
         speciesCatalog={speciesCatalog}
         xpAwarded={summary.xpAwarded}
         levelUps={summary.levelUps}
+        scrapAwarded={summary.scrapAwarded}
       />
     );
   }

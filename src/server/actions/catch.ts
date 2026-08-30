@@ -1,8 +1,9 @@
 'use server';
 
-import type { Item, OwnedMonster } from '@/lib/game/types';
+import type { Item, OwnedMonster, ScrapCounts } from '@/lib/game/types';
 import { computeCatchChance, computePerformance } from '@/lib/game/catch';
 import { createRng } from '@/lib/game/rng';
+import { rollScrapDrop } from '@/lib/game/scrap';
 import { effectiveStats } from '@/lib/game/stats';
 import { applyXp, roomXp } from '@/lib/game/xp';
 import { requireUser } from '@/server/auth';
@@ -17,9 +18,11 @@ import {
   updateMonster,
   type MonsterRow,
 } from '@/server/repo/monster';
-import { adjustCurrency, consumeItem, getInventoryRows } from '@/server/repo/profile';
+import { adjustCurrency, adjustScrap, consumeItem, getInventoryRows } from '@/server/repo/profile';
 import { getRunRow, updateRun, type DungeonRunRow } from '@/server/repo/run';
 import { getMaxHpFor } from '@/server/game-bridge';
+
+const ZERO_SCRAP: ScrapCounts = { common: 0, rare: 0, epic: 0, legendary: 0 };
 
 async function loadCatchContext(runId: string) {
   const user = await requireUser();
@@ -176,6 +179,7 @@ export async function finishRun(runId: string): Promise<{
   healing: { monsterId: string; until: string }[];
   xpAwarded: number;
   levelUps: { monsterId: string; from: number; to: number }[];
+  scrapAwarded: ScrapCounts;
 }> {
   const user = await requireUser();
   const run = await getRunRow(runId);
@@ -189,7 +193,13 @@ export async function finishRun(runId: string): Promise<{
     const healing = teamRows
       .filter((r) => r.healing_until && new Date(r.healing_until).getTime() > Date.now())
       .map((r) => ({ monsterId: r.id, until: r.healing_until as string }));
-    return { gold: run.gold_awarded, healing, xpAwarded: run.xp_awarded, levelUps: [] };
+    return {
+      gold: run.gold_awarded,
+      healing,
+      xpAwarded: run.xp_awarded,
+      levelUps: [],
+      scrapAwarded: (run.scrap_awarded as ScrapCounts | null) ?? ZERO_SCRAP,
+    };
   }
 
   const dungeon = await getDungeonById(run.dungeon_id);
@@ -218,12 +228,29 @@ export async function finishRun(runId: string): Promise<{
     }, 0);
   const xpAwarded = Math.floor(wonXp * (finalStatus === 'completed' ? 1.5 : 1));
 
+  // Scrap: only on a full clear (not partial/failed runs), per the locked
+  // spec -- deliberately diverges from XP, which pays out on any won room.
+  // Rolled off the run's own persisted cursor, same auditability guarantee
+  // as every other run roll.
+  let scrapAwarded: ScrapCounts = ZERO_SCRAP;
+  let scrapRng = createRng(run.rng_seed, run.rng_cursor);
+  if (finalStatus === 'completed') {
+    scrapAwarded = rollScrapDrop(scrapRng, dungeon.difficultyTier);
+  }
+
   await updateRun(run.id, {
     status: finalStatus,
     completed_at: new Date().toISOString(),
     gold_awarded: goldAwarded,
     xp_awarded: xpAwarded,
+    scrap_awarded: scrapAwarded,
+    rng_cursor: scrapRng.cursor,
   });
+  for (const rarity of Object.keys(scrapAwarded) as (keyof ScrapCounts)[]) {
+    if (scrapAwarded[rarity] > 0) {
+      await adjustScrap(run.owner_id, rarity, scrapAwarded[rarity]);
+    }
+  }
   if (goldAwarded > 0) {
     await adjustCurrency(run.owner_id, goldAwarded);
   }
@@ -260,5 +287,5 @@ export async function finishRun(runId: string): Promise<{
     }
   }
 
-  return { gold: goldAwarded, healing, xpAwarded, levelUps };
+  return { gold: goldAwarded, healing, xpAwarded, levelUps, scrapAwarded };
 }

@@ -47,6 +47,7 @@ export function DefeatView({ runId, busy, runAction, team, speciesCatalog }: Def
         {finished && xpAwarded > 0 && (
           <p className="mt-2 text-sm text-amber-300">+{xpAwarded} XP from the rooms you cleared.</p>
         )}
+        {finished && <p className="mt-1 text-xs text-slate-500">No upgrade scrap this time — scrap only drops on a full clear.</p>}
         {finished && healing.length > 0 && (
           <ul className="mt-3 flex flex-col gap-1 text-xs text-slate-400">
             {healing.map((h) => {

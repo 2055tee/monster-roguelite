@@ -32,6 +32,7 @@ import { computeCatchChance, computePerformance, rollChest } from '../src/lib/ga
 import { applyXp, roomXp } from '../src/lib/game/xp';
 import { hourBucket, rollShop, type ShopCatalogEntry } from '../src/lib/game/shop';
 import { canReforge, reforgeCap, rollReforge } from '../src/lib/game/reforge';
+import { rollScrapDrop } from '../src/lib/game/scrap';
 import type { Combatant, LogEntry, OwnedMonster } from '../src/lib/game/types';
 
 import { getAllDungeons, getAllItems, getDungeonById, getItemByName, getSpeciesById, getSpeciesByName } from '../src/server/repo/catalog';
@@ -597,12 +598,35 @@ async function testCatchAndFinish(userId: string, runId: string) {
   assert(finalRun?.status === 'completed', 'run marked completed');
   assert(finalRun?.xp_awarded === finishResult.xpAwarded, 'run row persists the xp_awarded amount');
 
-  // Idempotency: calling finishRun again should not double-award gold or xp.
+  // Scrap (WP13): a full clear should award 1-3 total units, persisted on the run row.
+  const totalScrap =
+    finishResult.scrapAwarded.common +
+    finishResult.scrapAwarded.rare +
+    finishResult.scrapAwarded.epic +
+    finishResult.scrapAwarded.legendary;
+  assert(totalScrap >= 1 && totalScrap <= 3, `full clear awards 1-3 total scrap (got ${totalScrap})`);
+  assert(
+    scrapEquals(finalRun?.scrap_awarded as Record<string, number> | undefined, finishResult.scrapAwarded),
+    'run row persists the exact scrap_awarded breakdown'
+  );
+  const profileScrapAfter = await getProfile(userId);
+  const scrapBeforeThisRun = { common: before!.scrap_common, rare: before!.scrap_rare, epic: before!.scrap_epic, legendary: before!.scrap_legendary };
+  assert(
+    profileScrapAfter!.scrap_common === scrapBeforeThisRun.common + finishResult.scrapAwarded.common &&
+      profileScrapAfter!.scrap_rare === scrapBeforeThisRun.rare + finishResult.scrapAwarded.rare &&
+      profileScrapAfter!.scrap_epic === scrapBeforeThisRun.epic + finishResult.scrapAwarded.epic &&
+      profileScrapAfter!.scrap_legendary === scrapBeforeThisRun.legendary + finishResult.scrapAwarded.legendary,
+    'profile scrap counters increased by exactly the awarded breakdown'
+  );
+
+  // Idempotency: calling finishRun again should not double-award gold, xp, or scrap.
   const secondFinish = await finishRunDirect(runId);
   assert(secondFinish.gold === dungeon.goldReward, 'second finishRun call is idempotent on gold');
   assert(secondFinish.xpAwarded === finishResult.xpAwarded, 'second finishRun call is idempotent on xp');
+  assert(scrapEquals(secondFinish.scrapAwarded, finishResult.scrapAwarded), 'second finishRun call is idempotent on scrap');
   const afterSecond = await getProfile(userId);
   assert(afterSecond!.currency === after!.currency, 'currency not double-awarded on repeat finishRun');
+  assert(afterSecond!.scrap_common === profileScrapAfter!.scrap_common, 'scrap not double-awarded on repeat finishRun');
   const teamAfterSecond = await getMonsterRowsByIds(run.team_snapshot);
   const oneAfterSecond = teamAfterSecond.find((m) => m.id === oneBefore.id)!;
   assert(
@@ -702,6 +726,12 @@ async function attemptCatchDirect(runId: string, consumableItemIds: string[]) {
   return { chance, roll, success, monster };
 }
 
+const ZERO_SCRAP = { common: 0, rare: 0, epic: 0, legendary: 0 };
+const SCRAP_TIERS = ['common', 'rare', 'epic', 'legendary'] as const;
+function scrapEquals(a: Record<string, number> | null | undefined, b: Record<string, number>): boolean {
+  return SCRAP_TIERS.every((t) => (a?.[t] ?? 0) === b[t]);
+}
+
 async function finishRunDirect(runId: string) {
   const run = (await getRunRow(runId))!;
   if (run.completed_at) {
@@ -709,7 +739,13 @@ async function finishRunDirect(runId: string) {
     const healing = teamRows
       .filter((r) => r.healing_until && new Date(r.healing_until).getTime() > Date.now())
       .map((r) => ({ monsterId: r.id, until: r.healing_until as string }));
-    return { gold: run.gold_awarded, healing, xpAwarded: run.xp_awarded, levelUps: [] as { monsterId: string; from: number; to: number }[] };
+    return {
+      gold: run.gold_awarded,
+      healing,
+      xpAwarded: run.xp_awarded,
+      levelUps: [] as { monsterId: string; from: number; to: number }[],
+      scrapAwarded: (run.scrap_awarded as typeof ZERO_SCRAP | null) ?? ZERO_SCRAP,
+    };
   }
 
   const dungeon = await getDungeonById(run.dungeon_id);
@@ -732,12 +768,23 @@ async function finishRunDirect(runId: string) {
     }, 0);
   const xpAwarded = Math.floor(wonXp * (finalStatus === 'completed' ? 1.5 : 1));
 
+  let scrapAwarded = ZERO_SCRAP;
+  const scrapRng = createRng(run.rng_seed, run.rng_cursor);
+  if (finalStatus === 'completed') {
+    scrapAwarded = rollScrapDrop(scrapRng, dungeon.difficultyTier);
+  }
+
   await updateRun(run.id, {
     status: finalStatus,
     completed_at: new Date().toISOString(),
     gold_awarded: goldAwarded,
     xp_awarded: xpAwarded,
+    scrap_awarded: scrapAwarded,
+    rng_cursor: scrapRng.cursor,
   });
+  for (const rarity of Object.keys(scrapAwarded) as (keyof typeof scrapAwarded)[]) {
+    if (scrapAwarded[rarity] > 0) await adjustScrap(run.owner_id, rarity, scrapAwarded[rarity]);
+  }
   if (goldAwarded > 0) await adjustCurrency(run.owner_id, goldAwarded);
 
   const teamRows = await getMonsterRowsByIds(run.team_snapshot);
@@ -768,7 +815,7 @@ async function finishRunDirect(runId: string) {
       healing.push({ monsterId: row.id, until });
     }
   }
-  return { gold: goldAwarded, healing, xpAwarded, levelUps };
+  return { gold: goldAwarded, healing, xpAwarded, levelUps, scrapAwarded };
 }
 
 async function testDoubleStartRejectedAndAbandon(userId: string) {

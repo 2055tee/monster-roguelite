@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { attemptCatch, finishRun, getCatchPreview } from '@/server/actions/catch';
 import { formatPct, speciesName } from './format';
-import type { MonsterSpecies, OwnedMonster } from '@/lib/game/types';
+import type { MonsterSpecies, OwnedMonster, ScrapCounts } from '@/lib/game/types';
 
 type CatchPreview = {
   performance: number;
@@ -27,6 +27,7 @@ type CatchViewProps = {
       healing: { monsterId: string; until: string }[];
       xpAwarded: number;
       levelUps: { monsterId: string; from: number; to: number }[];
+      scrapAwarded: ScrapCounts;
     },
     catchOutcome: CatchResult | null
   ) => void;

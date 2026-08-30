@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { speciesName } from './format';
-import type { MonsterSpecies, OwnedMonster } from '@/lib/game/types';
+import type { MonsterSpecies, OwnedMonster, ScrapCounts } from '@/lib/game/types';
+import { ITEM_RARITY_TEXT, SCRAP_EMOJI } from '@/components/hub/itemRarity';
 
 type SummaryViewProps = {
   gold: number;
@@ -15,7 +16,10 @@ type SummaryViewProps = {
   speciesCatalog: Record<string, MonsterSpecies>;
   xpAwarded: number;
   levelUps: { monsterId: string; from: number; to: number }[];
+  scrapAwarded: ScrapCounts;
 };
+
+const SCRAP_TIERS = ['common', 'rare', 'epic', 'legendary'] as const;
 
 export function SummaryView({
   gold,
@@ -25,14 +29,26 @@ export function SummaryView({
   speciesCatalog,
   xpAwarded,
   levelUps,
+  scrapAwarded,
 }: SummaryViewProps) {
   const router = useRouter();
+  const scrapEntries = SCRAP_TIERS.filter((t) => scrapAwarded[t] > 0);
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4">
       <Panel title="Run Complete">
         <p className="mb-2 text-lg font-semibold text-amber-300">🪙 {gold} gold earned</p>
         {xpAwarded > 0 && <p className="mb-2 text-sm text-emerald-300">✨ +{xpAwarded} XP for every team member</p>}
+        {scrapEntries.length > 0 && (
+          <p className="mb-2 text-sm">
+            {scrapEntries.map((tier, i) => (
+              <span key={tier} className={ITEM_RARITY_TEXT[tier]}>
+                {i > 0 ? ' · ' : ''}
+                {SCRAP_EMOJI[tier]} +{scrapAwarded[tier]} {tier[0].toUpperCase() + tier.slice(1)}
+              </span>
+            ))}
+          </p>
+        )}
         {levelUps.length > 0 && (
           <ul className="mb-2 flex flex-col gap-0.5 text-sm text-emerald-200">
             {levelUps.map((lu) => {
