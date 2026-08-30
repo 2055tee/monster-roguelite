@@ -88,7 +88,18 @@ export function SummaryView({
           </div>
         )}
       </Panel>
-      <Button onClick={() => router.push('/hub')}>Return to Hub</Button>
+      <Button
+        onClick={() => {
+          // Currency/scrap were just mutated server-side by finishRun; the
+          // shared (game) layout's header badges won't pick that up on a
+          // plain client-side push (Next.js doesn't re-fetch a parent layout
+          // on sibling navigation), so force a refresh alongside the push.
+          router.push('/hub');
+          router.refresh();
+        }}
+      >
+        Return to Hub
+      </Button>
     </div>
   );
 }

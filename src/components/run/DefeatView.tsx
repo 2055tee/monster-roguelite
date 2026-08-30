@@ -62,7 +62,15 @@ export function DefeatView({ runId, busy, runAction, team, speciesCatalog }: Def
           </ul>
         )}
       </Panel>
-      <Button disabled={!finished || busy} onClick={() => router.push('/hub')}>
+      <Button
+        disabled={!finished || busy}
+        onClick={() => {
+          // Same staleness fix as SummaryView: force a refresh so the header
+          // badges reflect whatever finishRun just changed server-side.
+          router.push('/hub');
+          router.refresh();
+        }}
+      >
         Return to Hub
       </Button>
     </div>
