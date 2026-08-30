@@ -84,6 +84,9 @@ export default async function HubPage() {
           <Link href="/hub/shop" className="text-amber-400 hover:underline">
             Shop →
           </Link>
+          <Link href="/hub/reforge" className="text-violet-400 hover:underline">
+            Reforge →
+          </Link>
         </div>
       </Panel>
 

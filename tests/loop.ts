@@ -31,6 +31,7 @@ import { createRng } from '../src/lib/game/rng';
 import { computeCatchChance, computePerformance, rollChest } from '../src/lib/game/catch';
 import { applyXp, roomXp } from '../src/lib/game/xp';
 import { hourBucket, rollShop, type ShopCatalogEntry } from '../src/lib/game/shop';
+import { canReforge, reforgeCap, rollReforge } from '../src/lib/game/reforge';
 import type { Combatant, LogEntry, OwnedMonster } from '../src/lib/game/types';
 
 import { getAllDungeons, getAllItems, getDungeonById, getItemByName, getSpeciesById, getSpeciesByName } from '../src/server/repo/catalog';
@@ -54,6 +55,7 @@ import {
   getProfile,
   grantItem,
   setBootstrapped,
+  setReforgeRng,
 } from '../src/server/repo/profile';
 import { getEncounterForRoom, getEncountersForRun, insertEncounter, updateEncounter } from '../src/server/repo/encounter';
 import { getInProgressRun, getRoomResult, getRunRow, insertRoomResult, insertRun, updateRun } from '../src/server/repo/run';
@@ -100,6 +102,7 @@ async function main() {
     await testDoubleStartRejectedAndAbandon(userId);
     await testItemInstancesAndReforge(userId);
     await testShopPurchase(userId);
+    await testReforgeAttempts(userId);
   } finally {
     await cleanup(userId);
   }
@@ -929,6 +932,91 @@ async function testShopPurchase(userId: string) {
   assert(!second.ok, 'buying the same slot again this hour is rejected');
 }
 
+/** Mirrors attemptReforge's core logic (src/server/actions/reforge.ts). */
+async function attemptReforgeDirect(userId: string, instanceId: string) {
+  const profile = (await getProfile(userId))!;
+  const items = await getAllItems();
+  const instance = (await getInstancesForOwner(userId)).find((i) => i.id === instanceId)!;
+  const item = items.find((i) => i.id === instance.item_id)!;
+
+  if (!canReforge(item.rarity, instance.reforge_level)) {
+    return { ok: false as const, error: 'at cap' };
+  }
+  const scrapColumn = `scrap_${item.rarity}` as const;
+  if (profile[scrapColumn] < 1) {
+    return { ok: false as const, error: 'no scrap' };
+  }
+
+  let seed = profile.reforge_rng_seed;
+  let cursor = profile.reforge_rng_cursor;
+  if (seed === 0) {
+    seed = Math.floor(Math.random() * 2 ** 31);
+    cursor = 0;
+  }
+  const targetLevel = instance.reforge_level + 1;
+  const rng = createRng(seed, cursor);
+  const { chance, roll, success } = rollReforge(rng, targetLevel);
+
+  await setReforgeRng(userId, seed, rng.cursor);
+  await adjustScrap(userId, item.rarity, -1);
+  if (success) {
+    await updateInstanceReforgeLevel(instanceId, targetLevel);
+  }
+  await admin.from('reforge_attempts').insert({
+    owner_id: userId,
+    instance_id: instanceId,
+    from_level: instance.reforge_level,
+    target_level: targetLevel,
+    chance,
+    roll,
+    success,
+    scrap_rarity: item.rarity,
+    rng_seed: seed,
+    rng_cursor: rng.cursor,
+  });
+
+  return { ok: true as const, success, fromLevel: instance.reforge_level, toLevel: success ? targetLevel : instance.reforge_level };
+}
+
+async function testReforgeAttempts(userId: string) {
+  console.log('\n== reforge attempts (WP12) ==');
+
+  const minorCharm = await getItemByName('Minor Charm');
+  if (!minorCharm) throw new Error('Minor Charm not found in catalog');
+  const instance = await insertInstance(userId, minorCharm.id);
+  await adjustScrap(userId, 'common', 5);
+
+  const scrapBefore = (await getProfile(userId))!.scrap_common;
+  const result = await attemptReforgeDirect(userId, instance.id);
+  assert(result.ok, 'a reforge attempt with sufficient scrap and below cap succeeds (as an attempt)');
+
+  const afterInstance = (await getInstancesForOwner(userId)).find((i) => i.id === instance.id)!;
+  const profileAfter = (await getProfile(userId))!;
+  assert(profileAfter.scrap_common === scrapBefore - 1, 'exactly 1 common scrap is consumed regardless of outcome');
+  if (result.ok && result.success) {
+    assert(afterInstance.reforge_level === 1, 'a successful attempt raises the reforge level by exactly 1');
+  } else {
+    assert(afterInstance.reforge_level === 0, 'a failed attempt leaves the reforge level unchanged (no downgrade)');
+  }
+
+  const { data: attemptRows } = await admin
+    .from('reforge_attempts')
+    .select('*')
+    .eq('owner_id', userId)
+    .eq('instance_id', instance.id);
+  assert((attemptRows ?? []).length === 1, 'a reforge_attempts audit row is written for the attempt');
+
+  // Force an at-cap rejection.
+  const cap = reforgeCap(minorCharm.rarity);
+  await updateInstanceReforgeLevel(instance.id, cap);
+  await adjustScrap(userId, 'common', 5);
+  const scrapBeforeCapped = (await getProfile(userId))!.scrap_common;
+  const cappedResult = await attemptReforgeDirect(userId, instance.id);
+  assert(!cappedResult.ok, 'an at-cap instance rejects further reforge attempts');
+  const scrapAfterCapped = (await getProfile(userId))!.scrap_common;
+  assert(scrapAfterCapped === scrapBeforeCapped, 'an at-cap rejection consumes no scrap');
+}
+
 async function cleanup(userId: string) {
   console.log('\n== cleanup ==');
   try {
@@ -944,6 +1032,7 @@ async function cleanup(userId: string) {
     await admin.from('inventory').delete().eq('owner_id', userId);
     await admin.from('item_instances').delete().eq('owner_id', userId);
     await admin.from('shop_purchases').delete().eq('owner_id', userId);
+    await admin.from('reforge_attempts').delete().eq('owner_id', userId);
     await admin.from('profiles').delete().eq('id', userId);
     await admin.auth.admin.deleteUser(userId);
     console.log('  cleaned up test user, runs, monsters, inventory, profile');
