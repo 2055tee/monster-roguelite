@@ -30,6 +30,7 @@ import { power, effectiveStats } from '../src/lib/game/stats';
 import { createRng } from '../src/lib/game/rng';
 import { computeCatchChance, computePerformance, rollChest } from '../src/lib/game/catch';
 import { applyXp, roomXp } from '../src/lib/game/xp';
+import { hourBucket, rollShop, type ShopCatalogEntry } from '../src/lib/game/shop';
 import type { Combatant, LogEntry, OwnedMonster } from '../src/lib/game/types';
 
 import { getAllDungeons, getAllItems, getDungeonById, getItemByName, getSpeciesById, getSpeciesByName } from '../src/server/repo/catalog';
@@ -46,6 +47,7 @@ import {
 } from '../src/server/repo/monster';
 import {
   adjustCurrency,
+  adjustScrap,
   consumeItem,
   ensureProfile,
   getInventoryRows,
@@ -97,6 +99,7 @@ async function main() {
     await testCatchAndFinish(userId, runId1);
     await testDoubleStartRejectedAndAbandon(userId);
     await testItemInstancesAndReforge(userId);
+    await testShopPurchase(userId);
   } finally {
     await cleanup(userId);
   }
@@ -846,6 +849,86 @@ async function testItemInstancesAndReforge(userId: string) {
   await updateMonster(target.id, { equipped_item_id: null, equipped_instance_id: null });
 }
 
+/** Mirrors buyShopSlot's core logic (src/server/actions/shop.ts), same pattern as finishRunDirect etc. */
+async function buyShopSlotDirect(userId: string, slotIndex: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  const bucket = hourBucket(Date.now());
+  const items = await getAllItems();
+  const catalog: ShopCatalogEntry[] = items.map((i) => ({ id: i.id, category: i.category, rarity: i.rarity }));
+  const roll = rollShop(bucket, catalog);
+  const listing = roll.listings.find((l) => l.slotIndex === slotIndex);
+  if (!listing) return { ok: false, error: 'That item is no longer in stock.' };
+
+  const profile = await getProfile(userId);
+  if (!profile || profile.currency < listing.price) return { ok: false, error: 'Not enough gold.' };
+
+  const { error: insertError } = await admin.from('shop_purchases').insert({
+    owner_id: userId,
+    hour_bucket: bucket,
+    slot_index: slotIndex,
+    item_id: listing.kind === 'item' ? listing.itemId : null,
+    scrap_rarity: listing.kind === 'scrap' ? listing.rarity : null,
+    quantity: listing.quantity,
+    price_paid: listing.price,
+  });
+  if (insertError) return { ok: false, error: 'You already bought this one this hour.' };
+
+  await adjustCurrency(userId, -listing.price);
+  if (listing.kind === 'scrap') {
+    await adjustScrap(userId, listing.rarity, listing.quantity);
+  } else if (listing.category === 'equipment') {
+    await insertInstance(userId, listing.itemId);
+  } else {
+    await grantItem(userId, listing.itemId, listing.quantity);
+  }
+  return { ok: true };
+}
+
+async function testShopPurchase(userId: string) {
+  console.log('\n== shop purchase (WP11) ==');
+
+  const bucket = hourBucket(Date.now());
+  const items = await getAllItems();
+  const catalog: ShopCatalogEntry[] = items.map((i) => ({ id: i.id, category: i.category, rarity: i.rarity }));
+  const roll = rollShop(bucket, catalog);
+  assert(roll.listings.length >= 3, 'shop roll for the current hour has at least 3 listings');
+
+  const target = roll.listings[0];
+  await adjustCurrency(userId, 100_000); // ensure affordability regardless of rolled price
+  const currencyBefore = (await getProfile(userId))!.currency;
+
+  const result = await buyShopSlotDirect(userId, target.slotIndex);
+  assert(result.ok, `buying slot ${target.slotIndex} (${target.kind}) succeeds`);
+
+  const profileAfter = await getProfile(userId);
+  assert(profileAfter!.currency === currencyBefore - target.price, 'gold decrements by exactly the listed price');
+
+  if (target.kind === 'scrap') {
+    const column = `scrap_${target.rarity}` as const;
+    assert(profileAfter![column] === target.quantity, `scrap balance increased by the bundle quantity (${target.quantity})`);
+  } else if (target.category === 'equipment') {
+    const owned = await getInstancesForOwner(userId);
+    assert(
+      owned.some((i) => i.item_id === target.itemId),
+      'buying an equipment listing creates an owned instance'
+    );
+  } else {
+    const inv = await getInventoryRows(userId);
+    const row = inv.find((r) => r.item_id === target.itemId);
+    assert(!!row && row.quantity >= target.quantity, 'buying a consumable listing grants it to inventory');
+  }
+
+  const { data: purchaseRows } = await admin
+    .from('shop_purchases')
+    .select('*')
+    .eq('owner_id', userId)
+    .eq('hour_bucket', bucket)
+    .eq('slot_index', target.slotIndex);
+  assert((purchaseRows ?? []).length === 1, 'exactly one shop_purchases row exists for this slot this hour');
+
+  const second = await buyShopSlotDirect(userId, target.slotIndex);
+  assert(!second.ok, 'buying the same slot again this hour is rejected');
+}
+
 async function cleanup(userId: string) {
   console.log('\n== cleanup ==');
   try {
@@ -860,6 +943,7 @@ async function cleanup(userId: string) {
     await admin.from('monsters').delete().eq('owner_id', userId);
     await admin.from('inventory').delete().eq('owner_id', userId);
     await admin.from('item_instances').delete().eq('owner_id', userId);
+    await admin.from('shop_purchases').delete().eq('owner_id', userId);
     await admin.from('profiles').delete().eq('id', userId);
     await admin.auth.admin.deleteUser(userId);
     console.log('  cleaned up test user, runs, monsters, inventory, profile');
