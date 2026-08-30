@@ -10,8 +10,7 @@ See `CONTEXT.md` for the original design brief.
 
 ## Status / where to pick up next
 
-The Shop + Reforge + Hub navigation redesign project (see "Shipped: Shop + Reforge + Hub navigation redesign" below) is complete and pushed, live on production. The 8-element type system (see "Shipped: Elemental type system" below) is complete and live-verified on local dev, but not yet committed/pushed. Nothing is currently in progress. Candidate next steps (none started, none requested yet — check with the user before picking one):
-- Push the elements work to `master` (auto-deploys to production) — pending explicit user go-ahead.
+The Shop + Reforge + Hub navigation redesign project (see "Shipped: Shop + Reforge + Hub navigation redesign" below) and the 8-element type system (see "Shipped: Elemental type system" below) are both complete, committed, pushed to `master`, and live on production. Nothing is currently in progress. Candidate next steps (none started, none requested yet — check with the user before picking one):
 - Playtest and balance Emberfall Cave / Frostspire Ruins / Voidmaw Depths (tiers 2–4) the same way Verdant Hollow was (see "Verdant Hollow balance"). Now that elements exist, note the type matchups those bosses' element creates against the starter team's elements (Sprigling=nature, Pebblet=earth, Thornmaw=dark) when balancing.
 - Repro the minified React #418 hydration warning on run→hub navigation in dev mode (see "Known non-blocking issues").
 - Rotate the demo account password before sharing the live link publicly (see Demo login above).
@@ -440,7 +439,7 @@ User-requested feature ("should we add element?"), scoped via `AskUserQuestion` 
 
 **Verification:** `npx tsc --noEmit` clean, `npm test` 69/69 (up from 59), `tests/loop.ts` 73/73 against the live Supabase project (untouched by this change — no server action or write path was touched, so the count didn't move). Live-verified on the demo account (local dev server, not yet deployed): roster grid shows correct element badges per species (Pebblet 🪨 earth, Thornmaw 🌑 dark, Cinderpup 🔥 fire, Sprigling 🍃 nature), the monster detail modal shows the same badge next to the rarity label, the dungeon-select grid shows each boss's element (Emberfang 🔥, Glacierhorn 🪨, Voidmaw/Thornmaw 🌑), and a real Verdant Hollow combat room rendered badges on every combatant row and resolved a live attack (Thornmaw's Strike vs. an enemy Sprigling — dark vs. nature, a neutral matchup outside the 5-cycle and outside the Light/Dark rivalry) with no console errors. The in-progress verification run was cleaned up via direct SQL (`update dungeon_runs set status='abandoned'`) rather than the in-app Abandon Run button, which triggers a blocking `window.confirm()` known to freeze the browser-automation session (see prior incident, documented as a standing thing to avoid).
 
-**Not yet done:** commit and push to `master` (pending user go-ahead — pushing auto-deploys to production via Vercel).
+**Pushed to `master`** (commit `625d026`) and live on production, per explicit user go-ahead.
 
 ## Known non-blocking issues
 
@@ -449,4 +448,4 @@ User-requested feature ("should we add element?"), scoped via `AskUserQuestion` 
 - Emberfall Cave / Frostspire Ruins / Voidmaw Depths (tiers 2–4) have not been playtested for winnability — only Verdant Hollow was verified and balanced this session.
 - A minified React error #418 (hydration mismatch, text content) was observed once on the run→hub navigation during a WP3 verification pass. Not reproduced or traced further; hasn't blocked or corrupted any observed functionality across multiple subsequent live playthroughs. Worth a dev-mode repro if it recurs or gets noisy.
 - ~~Header badges could show stale values after a client-side `router.push`~~ — **fixed**: `SummaryView.tsx`/`DefeatView.tsx`'s "Return to Hub" button now calls `router.refresh()` alongside `router.push('/hub')`, since the shared `(game)` layout isn't otherwise re-fetched on sibling navigation under Next.js App Router's default caching. Verified live on both paths: a full clear that earned 20 gold + 2 scrap showed the header updating 55→75 gold and scrap 1→2/1 immediately on "Return to Hub" (`SummaryView`), and a real Voidmaw Depths wipe (team fainted in room 1, 0 XP/gold/scrap awarded as designed) navigated back to a clean hub with no console errors and the header correctly unchanged (`DefeatView`). If any other page mutates currency/scrap and navigates away without going through `router.refresh()`, apply the same fix there.
-- The elements work is uncommitted/unpushed as of this writing — remember pushing triggers Vercel auto-deploy to production.
+- ~~The elements work is uncommitted/unpushed~~ — **pushed**: committed as `625d026` and pushed to `master`, live on production via Vercel auto-deploy.
