@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import type { Item, MonsterSpecies, Stats } from '@/lib/game/types';
+import type { Item, ItemInstance, ItemRarity, MonsterSpecies, Stats } from '@/lib/game/types';
 
 /**
  * Read-only catalog lookups for WP4's UI needs.
@@ -38,6 +38,7 @@ type ItemRow = {
   description: string;
   effect: Item['effect'];
   drop_weight: number;
+  rarity: ItemRarity;
 };
 
 export async function getSpeciesCatalog(): Promise<Record<string, MonsterSpecies>> {
@@ -80,6 +81,31 @@ export async function getItemCatalog(): Promise<Record<string, Item>> {
         description: row.description,
         effect: row.effect,
         dropWeight: row.drop_weight,
+        rarity: row.rarity,
+      };
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+type ItemInstanceRow = { id: string; item_id: string; reforge_level: number; acquired_at: string };
+
+/** RLS-scoped read of the current user's owned equipment instances, keyed by instance id. */
+export async function getEquipmentInstances(): Promise<Record<string, ItemInstance>> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from('item_instances').select('*');
+    if (error || !data) return {};
+
+    const map: Record<string, ItemInstance> = {};
+    for (const row of data as ItemInstanceRow[]) {
+      map[row.id] = {
+        id: row.id,
+        itemId: row.item_id,
+        reforgeLevel: row.reforge_level,
+        acquiredAt: row.acquired_at,
       };
     }
     return map;

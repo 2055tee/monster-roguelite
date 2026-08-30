@@ -1,4 +1,5 @@
 import type { Dungeon, MonsterSpecies } from '@/lib/game/types';
+import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import { Card } from '@/components/ui/Card';
 import { EnterDungeonButton } from './EnterDungeonButton';
 
@@ -23,7 +24,7 @@ export function DungeonCard({
       </div>
       <p className="text-xs text-slate-400">Enemy Lv {dungeon.enemyLevel}</p>
       <div className="flex items-center gap-2 text-sm text-slate-300">
-        <span className="text-lg">{bossSpecies?.emoji ?? '❓'}</span>
+        <SpeciesIcon name={bossSpecies?.name ?? ''} emoji={bossSpecies?.emoji ?? '❓'} size={28} />
         <span>Boss: {bossSpecies?.name ?? dungeon.bossSpeciesId}</span>
       </div>
       <p className="text-xs text-amber-300">🪙 {dungeon.goldReward} reward</p>

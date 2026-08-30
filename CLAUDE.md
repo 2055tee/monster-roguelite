@@ -10,11 +10,9 @@ See `CONTEXT.md` for the original design brief.
 
 ## Status / where to pick up next
 
-The Roster/Battle UI overhaul + XP system (see "Shipped" section below) is fully complete, deployed, and live-verified as of the last commit. Nothing is currently in progress. Candidate next steps (none started, none requested yet — check with the user before picking one):
-- Playtest and balance Emberfall Cave / Frostspire Ruins / Voidmaw Depths (tiers 2–4) the same way Verdant Hollow was (see "Verdant Hollow balance").
-- Repro the minified React #418 hydration warning on run→hub navigation in dev mode (see "Known non-blocking issues").
-- Rotate the demo account password before sharing the live link publicly (see Demo login above).
-- `tests/loop.ts` hasn't been re-run since WP3; WP4-WP8 were client-only so it shouldn't be affected, but worth a green run before the next server-side change.
+**In progress: Shop + Reforge + Hub navigation redesign** (see that section below for the full locked spec — WP9–WP15). Planned by an Opus pass, decisions confirmed with the user, being implemented by Sonnet one work package at a time, same process as the earlier XP/UI project. Check the work-package checklist in that section for which WP is next — whichever session picks this up should start there and follow the spec literally rather than re-deriving it, since every formula, price, and edge case in it was already decided.
+
+Once that project ships, candidate next steps (none started): playtest/balance tiers 2–4 dungeons (see "Verdant Hollow balance"), repro the React #418 hydration warning (see "Known non-blocking issues"), rotate the demo account password before sharing the live link publicly.
 
 ## Architecture
 
@@ -28,8 +26,8 @@ The Roster/Battle UI overhaul + XP system (see "Shipped" section below) is fully
 
 - `npm test` — unit tests for the pure game engine (fast, no I/O).
 - `npx tsc --noEmit` — typecheck.
-- `npx tsx --env-file=.env.local tests/loop.ts` — integration test against the **live** Supabase project. Drives bootstrap → start run → combat → rest → boss → catch → finish, plus double-start rejection, run-abandon, and XP-award/level-up/idempotency checks (50 assertions). This bypasses `requireUser()`'s `next/headers` dependency by calling the same repo/game-bridge layer the actions delegate to, with a resolved user id passed in directly — see the file's header comment for why.
-- Run both before every deploy. Both were green as of the last commit (`npm test`/`tsc` re-confirmed after WP7; `tests/loop.ts` last run during WP3, untouched by WP4-WP8's client-only changes).
+- `npx tsx --env-file=.env.local tests/loop.ts` — integration test against the **live** Supabase project. Drives bootstrap → start run → combat → rest → boss → catch → finish, plus double-start rejection, run-abandon, XP-award/level-up/idempotency, and (as of WP10) item-instance/equip/reforge checks (56 assertions). This bypasses `requireUser()`'s `next/headers` dependency by calling the same repo/game-bridge layer the actions delegate to, with a resolved user id passed in directly — see the file's header comment for why.
+- Run both before every deploy. `npm test` is at 59 unit tests (up from 37) as of WP9; `tests/loop.ts` is at 56 assertions (up from 50) as of WP10; both green as of the last commit.
 
 ## Game design decisions (v1, load-bearing — not placeholders)
 
@@ -97,6 +95,321 @@ Planned by an Opus pass, confirmed with the user, implemented by Sonnet one work
 6. ✅ **Equip preview with affected-stat highlight** — `EquipSelect.tsx` now takes full `Item[]` (not `{itemId,name}[]`) and an optional `onPreviewChange?: (itemId: string | null) => void`, fired synchronously in `handleChange` before the async `equipItem(...)` call resolves (and reverted back to the currently-equipped id if the server call errors). Native `<select>` doesn't support real hover-preview reliably cross-browser, so the preview fires on selection, not mouse-hover — the change is visible immediately, before the server commit lands. `MonsterDetailModal.tsx` holds the `previewItemId` state, computes `previewStats` via `effectiveStats(species, monster, previewItem)` only when it differs from the committed item, and the stat-breakdown table's Final column shows the delta inline (`+21` emerald / `-5` red) per stat plus a Power total delta, with the changed row(s) tinted (`bg-indigo-950/30`). `hub/monsters/page.tsx`'s `equipmentOptions` now maps inventory entries through `itemCatalog` to full `Item` objects instead of `{itemId,name}`, so all three consumers (`RosterCard`, `MonsterDetailModal`, `EquipSelect`) share one real `Item` shape. Client-only change — no server action or DB changes; `equipItem` (`hub.ts`) untouched.
 7. ✅ **Drag-and-drop team slots** — `TeamSlotDropZone.tsx` (new) renders the 3 team slots as a left-side panel on `hub/monsters/page.tsx` (`grid-cols-[13rem_1fr]`, sticky on desktop, horizontal strip on mobile — same pattern as WP1's `TurnOrderPanel`), each a dashed-border drop target showing the occupant's name/XP bar or "Drag a monster here". `RosterCard.tsx` is now `draggable`, setting the monster id on `dataTransfer` (custom MIME `application/x-monster-id`, exported as `DRAG_MIME`) in `onDragStart`; drag and the existing click-to-open-modal coexist fine since `dragstart` doesn't fire `click`. `setTeamSlot` (`src/server/actions/hub.ts`) changed from evict-to-bench to **swap**: the displaced occupant now takes the dragged monster's *previous* `team_slot` (bench/`null` if it wasn't on the team) instead of always going to bench — this also changes the existing modal Slot 0/1/2 buttons' behavior identically, which is intended (one semantic, two input methods). Verified live: dispatched a real `dragstart`→`dragover`→`drop` `DragEvent` sequence via JS (native `left_click_drag` mouse simulation doesn't trigger HTML5 DnD's browser-level drag protocol, so this was necessary to actually exercise the drop handler) — dragging a benched monster onto an occupied slot correctly swapped it in and sent the previous occupant to the bench, no console errors.
 8. ✅ **Docs + full live verification pass** — this section rewritten to reflect the finished state. A full live playthrough on production re-verified the whole feature set working together (not just isolated per-WP spot-checks): roster page (3-slot drop panel + card grid + detail modal), equip preview (Vital Locket: `+12%` shown, HP 91→101, Power 90→92), the combat turn-order sidebar updating correctly turn-by-turn through a full real Verdant Hollow clear, and the XP/level-up flow (real unforced boss fight, `SummaryView` showed `+111 XP for every team member` / `Thornmaw reached Lv 4!`, hub afterward correctly showed currency 100→120 and the new levels/XP persisted). No bugs found.
+
+## Planned: Shop + Reforge + Hub navigation redesign (WP9–WP15)
+
+Planned by an Opus pass, confirmed with the user, being implemented by Sonnet one work package at a time — same process as the shipped WP1–WP8 project below. Each WP: `npx tsc --noEmit` → `npm test` → `tests/loop.ts` where noted → commit+push → live verify → update this checklist.
+
+**Work packages:**
+9. ✅ Schema (migrations 008–010), item rarity + 20-item catalog (16 equipment across 4 archetypes × 4 rarities + 4 consumables), pure engine (`reforge.ts`, `shop.ts`, `scrap.ts`, `hash32` in `rng.ts`) + 22 new unit tests (59 total, up from 37). No UI/gameplay change yet. Item rarity table deviates from the original Opus draft per user instruction: each of the 4 existing equipment archetypes (Minor Charm/Guard Plate/Swift Band/Vital Locket) now has a Rare/Epic/Legendary variant instead of 4 unrelated new items being added — see the "Locked design decisions" table above for the final 16-item list, drop weights, and real DB UUIDs (recorded in `seed-data.ts`'s `ITEM_IDS`).
+10. ✅ Item-instance cutover — equipment moved from quantity-stacked `inventory` to per-copy `item_instances` with a `reforge_level` (migration 009's backfill converted every existing owned copy to a +0 instance and pointed `monsters.equipped_instance_id` at the right one; verified live on the demo account — 6 real equipment instances appeared correctly with equipped/unequipped status). New `src/server/repo/item-instance.ts`. `game-bridge.ts`'s new `getEquippedContext(row)` is the single point resolving `equipped_instance_id → item_instances → items` — `buildPlayerCombatant`/`getMaxHpFor`/`computeTeamPower` all route through it, so reforge bonuses reach combat automatically. `hub.ts`'s `equipItem` now takes an instance id (unequips the instance from any other monster first, since one instance = one physical copy). `run.ts`'s chest branch creates an instance instead of `grantItem` when the roll lands on equipment. `profile.ts`'s `grantItem` now throws if given an equipment item id (enforces the equipment-goes-through-instances invariant). UI: `EquipSelect`/`RosterCard`/`MonsterDetailModal`/`TeamSlotCard` all thread `reforgeLevel` into `effectiveStats`; new `src/components/hub/itemRarity.ts` (rarity color tokens, separate from `rarity.ts`'s monster-roll rarity) and `EquipmentInstanceRow.tsx` (per-instance rows on the inventory page, replacing the old quantity-based equipment list). `tests/loop.ts` extended with an item-instance section (insert, equip, reforge-to-+6, exact-stat-value check) — 56 assertions total, up from 49, all green against the live project.
+11. ⬜ Shop server actions (`src/server/actions/shop.ts`) + `/hub/shop` page.
+12. ⬜ Reforge server action (`src/server/actions/reforge.ts`) + `/hub/reforge` page.
+13. ⬜ Scrap drops wired into `finishRun` (full clears only) + summary UI + global scrap badge.
+14. ⬜ Hub 4-button nav redesign (Dungeon/Inventory/Shop/Reforge) + `/hub/dungeon` page + color consistency pass.
+15. ⬜ Docs rewrite (this section → "Shipped") + full live end-to-end verification pass.
+
+### User-confirmed decisions
+- Reforge failure: **scrap consumed, item stays at its current level** — no downgrade, no destruction (matches the game's no-permadeath philosophy).
+- Item rarity: each of the 4 existing equipment archetypes gets a variant at **all 4 rarities** — 16 equipment items total, stat bonus scaling up per rarity (table below; this overrides the Opus-authored version of this table, which only added 4 unrelated new items instead of tiering the existing 4 — the table below is the one to build from).
+- Autonomy: implement continuously without stopping for confirmation between work packages; if a session runs low on room to keep going, stop cleanly and leave this checklist accurate so the next session can resume immediately.
+
+### Why the current data model has to change
+`items` is a catalog of **types** (`id/name/category/description/effect/drop_weight`), `inventory` is `(owner_id, item_id, quantity)`, and `monsters.equipped_item_id` points at a catalog row. There's no per-copy identity anywhere, so "this Guard Plate is +4 and that one is +0" is unrepresentable today. Reforge requires a per-copy `item_instances` table for **equipment only** — consumables stay quantity-stacked in `inventory` (fungible, not reforgeable). There's also no rarity/quality field on `items` at all yet.
+
+### Locked design decisions (v1 — same status as the combat/catch/XP formulas above)
+
+**Item rarity & the 16-item equipment catalog.** Each of the 4 existing stat-line archetypes now exists at all 4 rarities, with the original item becoming that line's Common tier:
+
+| Item | Stat line | Rarity | Effect | drop_weight |
+|---|---|---|---|---|
+| Minor Charm | ATK | common | +10% ATK | 22 |
+| Charm of Force | ATK | rare | +18% ATK | 9 |
+| Charm of Conquest | ATK | epic | +28% ATK | 4 |
+| Charm of Ascendance | ATK | legendary | +40% ATK | 1 |
+| Guard Plate | DEF | common | +15% DEF | 18 |
+| Bastion Plate | DEF | rare | +24% DEF | 8 |
+| Aegis Plate | DEF | epic | +36% DEF | 3 |
+| Sovereign Plate | DEF | legendary | +50% DEF | 1 |
+| Swift Band | SPD | common | +15% SPD | 15 |
+| Gale Band | SPD | rare | +24% SPD | 7 |
+| Tempest Band | SPD | epic | +36% SPD | 3 |
+| Zephyr Band | SPD | legendary | +50% SPD | 1 |
+| Vital Locket | HP | common | +12% HP | 15 |
+| Locket of Vigor | HP | rare | +20% HP | 7 |
+| Locket of Vitality | HP | epic | +30% HP | 3 |
+| Locket of Eternity | HP | legendary | +42% HP | 1 |
+| Lure Bait | (consumable) | common | +15pp catch | 18 |
+| Prime Lure | (consumable) | rare | +30pp catch | 9 |
+| Field Elixir | (consumable) | rare | instant heal | 3 |
+| Grand Lure (new) | (consumable) | epic | +45pp catch | 2 |
+
+Chest drop-table total weight goes 100 → 150 (existing items' relative odds dilute by a third — intentional and accepted). No legendary consumable exists in v1 — the shop's rarity-fallback rule (below) handles an empty pool by stepping down a tier, then skipping the slot if the whole category is exhausted.
+
+Migration `008_item_rarity_v8.sql`:
+```sql
+alter table public.items
+  add column rarity text not null default 'common'
+  check (rarity in ('common','rare','epic','legendary'));
+
+-- existing 7 rows: Minor Charm/Guard Plate/Swift Band/Vital Locket/Lure Bait stay 'common' default;
+update public.items set rarity = 'rare' where name in ('Prime Lure','Field Elixir');
+
+insert into public.items (name, category, description, effect, drop_weight, rarity) values
+  ('Charm of Force',      'equipment', '+18% ATK', '{"type":"stat_pct","stat":"atk","value":0.18}', 9, 'rare'),
+  ('Charm of Conquest',   'equipment', '+28% ATK', '{"type":"stat_pct","stat":"atk","value":0.28}', 4, 'epic'),
+  ('Charm of Ascendance', 'equipment', '+40% ATK', '{"type":"stat_pct","stat":"atk","value":0.40}', 1, 'legendary'),
+  ('Bastion Plate',       'equipment', '+24% DEF', '{"type":"stat_pct","stat":"def","value":0.24}', 8, 'rare'),
+  ('Aegis Plate',         'equipment', '+36% DEF', '{"type":"stat_pct","stat":"def","value":0.36}', 3, 'epic'),
+  ('Sovereign Plate',     'equipment', '+50% DEF', '{"type":"stat_pct","stat":"def","value":0.50}', 1, 'legendary'),
+  ('Gale Band',           'equipment', '+24% SPD', '{"type":"stat_pct","stat":"spd","value":0.24}', 7, 'rare'),
+  ('Tempest Band',        'equipment', '+36% SPD', '{"type":"stat_pct","stat":"spd","value":0.36}', 3, 'epic'),
+  ('Zephyr Band',         'equipment', '+50% SPD', '{"type":"stat_pct","stat":"spd","value":0.50}', 1, 'legendary'),
+  ('Locket of Vigor',     'equipment', '+20% HP',  '{"type":"stat_pct","stat":"hp","value":0.20}',  7, 'rare'),
+  ('Locket of Vitality',  'equipment', '+30% HP',  '{"type":"stat_pct","stat":"hp","value":0.30}',  3, 'epic'),
+  ('Locket of Eternity',  'equipment', '+42% HP',  '{"type":"stat_pct","stat":"hp","value":0.42}',  1, 'legendary'),
+  ('Grand Lure',          'consumable','+45pp catch chance', '{"type":"catch_bonus","value":0.45}', 2, 'epic')
+on conflict (name) do update set
+  category = excluded.category, description = excluded.description,
+  effect = excluded.effect, drop_weight = excluded.drop_weight, rarity = excluded.rarity;
+```
+
+**Reforge.**
+- Caps by item rarity: `common 6, rare 9, epic 12, legendary 15`.
+- Bonus: each level multiplies the item's effect value by `1 + 0.05 * level`. E.g. Minor Charm (+10% ATK) at +6 → `0.10 * 1.30 = 0.13` → +13% ATK. Locket of Eternity (+42% HP) at +15 → `0.42 * 1.75 = 0.735` → +73.5% max HP.
+- Cost: **1 upgrade scrap of the item's own rarity tier** per attempt, exact match, no substitution. No gold cost.
+- Success chance to reach `+N`: `(100 - 5N) / 100` — +1 → 95%, +10 → 50%, +15 → 25%.
+- **On failure: scrap consumed, item stays at exactly its current level.** Never downgrades, never breaks.
+- Equipped items reforge in place; combat stats update immediately, no re-equip needed.
+- Consumables are not reforgeable. No sell/salvage-for-scrap mechanic in v1.
+
+**Upgrade scrap.**
+- 4 tiers matching item rarity, stored as 4 int columns on `profiles` (mirrors the existing `currency` column — no new table, no join on every hub read): `scrap_common`, `scrap_rare`, `scrap_epic`, `scrap_legendary`.
+- Sources: dungeon clears (WP13) and the hourly shop (WP11).
+- Emoji: common 🔩, rare ⚙️, epic 💠, legendary 🌟.
+
+**Shop.**
+- **Global, not per-player** — every player sees the same stock in the same real-world hour, derived purely from `hourBucket = floor(Date.now() / 3_600_000)`. No cron job, no `shop_stock` table — stock is a pure function of the bucket, recomputed on every read.
+- Stock: `5 + (rng() < 0.5 ? 1 : 0)` item listings, guaranteed ≥2 equipment and ≥2 consumables, remaining slots coin-flipped between the two. **Plus exactly 1 scrap listing**, separate from the 5–6 (so 6–7 rows total).
+- Rarity weights per listing: `common 55, rare 28, epic 13, legendary 4`.
+- Scrap listing: tier uniform 1/4 across all four tiers (no progression gating — legendary scrap can appear hour 1), bundle of **3 scrap**, buyable once per hour per player.
+- Per-player purchase state: each slot buyable **once per hour per player** (`shop_purchases` PK `(owner_id, hour_bucket, slot_index)`).
+- Prices (gold): equipment common/rare/epic/legendary = **60/150/360/800**; consumable = **25/60/140/300**; scrap per unit = **20/50/120/260** (× 3 for the bundle).
+- Unpurchased stock vanishes on reset (nothing persists/carries over). Duplicates across different hours are fine; no duplicate item id within one hour's roll.
+
+**RNG approach** (three different needs, three different answers — matches the project's existing auditability property):
+1. **Shop roll** — pure hash of the hour bucket, `createRng(hash32(hourBucket), 0)`, no persisted cursor. More auditable than a cursor would be: the whole hour's stock is reproducible from one public integer forever, no DB state. Server always recomputes the bucket from `Date.now()` and ignores any client-supplied bucket.
+2. **Reforge roll** — persisted seed + cursor on `profiles` (`reforge_rng_seed bigint`, `reforge_rng_cursor int`), advanced/persisted per attempt exactly like `dungeon_runs.rng_seed/rng_cursor`. A reforge attempt is a real gamble that permanently changes an item — same class of event as a catch roll, same auditability guarantee. Every attempt also logged to `reforge_attempts` (seed/cursor/chance/roll/result).
+3. **Scrap drop roll** — rolled inside `finishRun` off the run's own `rng_seed`/`rng_cursor`. Zero new RNG state.
+
+### WP9 — Schema, item rarity, pure engine (no UI, no gameplay wiring)
+
+Migrations (apply via `mcp__supabase__apply_migration`, commit source-controlled copies to `supabase/migrations/`):
+- `008_item_rarity_v8.sql` — items.rarity + the 16-item equipment catalog + Grand Lure (SQL above).
+- `009_item_instances_v9.sql`:
+```sql
+create table public.item_instances (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  item_id uuid not null references public.items(id) on delete cascade,
+  reforge_level int not null default 0 check (reforge_level >= 0 and reforge_level <= 15),
+  acquired_at timestamptz not null default now()
+);
+create index item_instances_owner_idx on public.item_instances(owner_id);
+alter table public.item_instances enable row level security;
+create policy "item instances select own" on public.item_instances
+  for select using (auth.uid() = owner_id);
+
+alter table public.monsters
+  add column equipped_instance_id uuid references public.item_instances(id) on delete set null;
+
+-- Backfill: one instance per owned copy of every equipment item, at +0.
+insert into public.item_instances (owner_id, item_id)
+select inv.owner_id, inv.item_id
+from public.inventory inv
+join public.items i on i.id = inv.item_id
+cross join generate_series(1, inv.quantity)
+where i.category = 'equipment';
+
+update public.monsters m
+set equipped_instance_id = (
+  select ii.id from public.item_instances ii
+  where ii.owner_id = m.owner_id and ii.item_id = m.equipped_item_id
+  order by ii.acquired_at limit 1
+)
+where m.equipped_item_id is not null;
+
+delete from public.inventory inv
+using public.items i
+where i.id = inv.item_id and i.category = 'equipment';
+```
+- `010_shop_scrap_reforge_v10.sql`:
+```sql
+alter table public.profiles add column scrap_common     int not null default 0;
+alter table public.profiles add column scrap_rare       int not null default 0;
+alter table public.profiles add column scrap_epic       int not null default 0;
+alter table public.profiles add column scrap_legendary  int not null default 0;
+alter table public.profiles add column reforge_rng_seed   bigint not null default 0;
+alter table public.profiles add column reforge_rng_cursor int    not null default 0;
+
+alter table public.dungeon_runs add column scrap_awarded jsonb not null default '{}';
+
+create table public.shop_purchases (
+  owner_id    uuid not null references auth.users(id) on delete cascade,
+  hour_bucket bigint not null,
+  slot_index  int not null,
+  item_id     uuid references public.items(id),
+  scrap_rarity text check (scrap_rarity in ('common','rare','epic','legendary')),
+  quantity    int not null default 1,
+  price_paid  int not null,
+  purchased_at timestamptz not null default now(),
+  primary key (owner_id, hour_bucket, slot_index)
+);
+alter table public.shop_purchases enable row level security;
+create policy "shop purchases select own" on public.shop_purchases
+  for select using (auth.uid() = owner_id);
+
+create table public.reforge_attempts (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  instance_id uuid not null references public.item_instances(id) on delete cascade,
+  from_level int not null,
+  target_level int not null,
+  chance numeric not null,
+  roll numeric not null,
+  success boolean not null,
+  scrap_rarity text not null,
+  rng_seed bigint not null,
+  rng_cursor int not null,
+  created_at timestamptz not null default now()
+);
+alter table public.reforge_attempts enable row level security;
+create policy "reforge attempts select own" on public.reforge_attempts
+  for select using (auth.uid() = owner_id);
+```
+Then regenerate `src/lib/supabase/database.types.ts` (`mcp__supabase__generate_typescript_types`).
+
+Type changes (`src/lib/game/types.ts`, frozen-type change — update every consumer, same handling as WP2's `OwnedMonster.xp`):
+```ts
+export type ItemRarity = 'common' | 'rare' | 'epic' | 'legendary';
+export type ScrapCounts = Record<ItemRarity, number>;
+// Item gains required field: rarity: ItemRarity;
+export type ItemInstance = { id: string; itemId: string; reforgeLevel: number; acquiredAt: string };
+// OwnedMonster gains: equippedInstanceId: string | null;
+// HubView gains: scrap: ScrapCounts; equipment: ItemInstance[];  (inventory becomes consumables-only)
+```
+Update: `mapItem` in `catalog.ts` + `catalog-client.ts`, `SEED_ITEMS`/`ITEM_IDS` in `seed-data.ts` (add `rarity` to all 20 items — read the new UUIDs back from the live DB after migration), `mapMonsterRow`, the draft `OwnedMonster` literals in `hub.ts`/`catch.ts`, test fixtures in `tests/game/items-stats.test.ts`.
+
+Pure engine additions:
+- `src/lib/game/rng.ts` — `hash32(n: number): number` (splitmix32 finalizer), `createRng` untouched.
+- `src/lib/game/items.ts` — `reforgeBonusMultiplier(level) = 1 + 0.05*level`; `applyEquipmentModifier(base, item, reforgeLevel = 0)` uses `item.effect.value * reforgeBonusMultiplier(reforgeLevel)`.
+- `src/lib/game/stats.ts` — `effectiveStats(species, monster, equippedItem, reforgeLevel = 0)`.
+- New `src/lib/game/reforge.ts`: `REFORGE_CAP: Record<ItemRarity, number> = {common:6, rare:9, epic:12, legendary:15}`; `reforgeCap`, `reforgeSuccessChance(target) = clamp((100-5*target)/100, 0.05, 1)`, `canReforge(rarity, currentLevel)`, `rollReforge(rng, targetLevel)`, `effectValueAtLevel(baseValue, level)`.
+- New `src/lib/game/shop.ts`: `SHOP_BUCKET_MS=3_600_000`; `hourBucket(nowMs)`, `hourBucketStartMs(bucket)`, `nextResetMs(bucket)`; `SHOP_RARITY_WEIGHTS={common:55,rare:28,epic:13,legendary:4}`; `EQUIPMENT_PRICE`/`CONSUMABLE_PRICE`/`SCRAP_UNIT_PRICE` per the tables above; `SCRAP_BUNDLE_SIZE=3`; `SCRAP_SLOT_INDEX=99`; `rollShop(bucket, catalog)` — deterministic algorithm, **don't reorder the RNG draw sequence**: (1) `rng=createRng(hash32(bucket),0)`; (2) `total = 5 + (rng.next()<0.5?1:0)`; (3) category plan `['equipment','equipment','consumable','consumable']` + coin-flip per remaining slot; (4) per slot roll rarity from weights, candidate pool = catalog matching category+rarity minus already-picked ids, step rarity down-then-up if empty, skip slot if category exhausted; (5) `pick = pool[floor(rng.next()*pool.length)]`, price from the item's actual rolled rarity; (6) scrap slot last, tier `floor(rng.next()*4)`, qty 3.
+- New `src/lib/game/scrap.ts`: `SCRAP_TIER_WEIGHTS_BY_DUNGEON_TIER: Record<number, Record<ItemRarity,number>> = {1:{common:85,rare:13,epic:2,legendary:0}, 2:{common:65,rare:27,epic:7,legendary:1}, 3:{common:45,rare:35,epic:17,legendary:3}, 4:{common:25,rare:38,epic:29,legendary:8}}`; `rollScrapDrop(rng, difficultyTier)` — quantity `1 + floor(rng.next()*3)` (uniform 1/2/3), each unit's tier rolled independently from the tier's weight table, unknown tiers clamp to 1..4.
+
+Tests: `tests/game/reforge.test.ts`, `tests/game/shop.test.ts`, `tests/game/scrap.test.ts`, additions to `tests/game/items-stats.test.ts` — success-chance/cap values, `effectValueAtLevel`, `rollShop` determinism (same bucket → same result, different bucket → different), zone minimums, no duplicate ids, price correctness, `hourBucket` boundary values, `rollScrapDrop` totals/tier-4-legendary-rate-over-10k-seeds/tier-1-never-legendary.
+
+Exit criteria: `npx tsc --noEmit`, `npm test` green. No user-visible change except rarity existing in the DB.
+
+### WP10 — Item-instance cutover
+
+New `src/server/repo/item-instance.ts` (`mapItemInstanceRow`, `getInstancesForOwner`, `getInstanceRow`, `insertInstance`, `updateInstanceReforgeLevel`, `getMonsterUsingInstance`). `src/server/repo/profile.ts`: `grantItem` throws if called with an equipment item (equipment must go through `insertInstance`); add scrap/reforge-rng fields to `ProfileRow`; `adjustScrap(userId, rarity, delta)`.
+
+`src/server/game-bridge.ts`: new `getEquippedContext(row)` resolving `equipped_instance_id → item_instances → items`; `buildPlayerCombatant`/`getMaxHpFor`/`computeTeamPower` route through it, passing `reforgeLevel` into `effectiveStats`. **This is the single point where reforge bonuses enter combat.** Invariant: `monsters.equipped_item_id` stays a denormalized mirror of `item_instances[equipped_instance_id].item_id` so existing `getItemById(row.equipped_item_id)` reads keep working; `equipItem` is the only writer of both columns, always together.
+
+`hub.ts`: `equipItem(monsterId, instanceId: string | null)` — instance id now, not item id; verifies ownership of both monster and instance, category is equipment, un-equips the instance from any other monster of the same owner first. `getHubState()` returns `equipment: ItemInstance[]`, `scrap: ScrapCounts`, `inventory` filtered to consumables only.
+
+`run.ts`: chest branch — equipment roll → `insertInstance` instead of `grantItem`; `grantedItem` gains `rarity`/`instanceId`, `RestView.tsx` shows rarity color.
+
+UI: `catalog-client.ts` maps `rarity`, adds `getEquipmentInstances()`. `EquipSelect.tsx` options are instances (`"Minor Charm +4"`), rarity-colored. `MonsterDetailModal.tsx`/`RosterCard.tsx`/`TeamSlotCard.tsx` pass `reforgeLevel` into `effectiveStats`. `hub/inventory/page.tsx` equipment panel becomes per-instance rows (new `EquipmentInstanceRow.tsx`). New `src/components/hub/itemRarity.ts` (separate from `rarity.ts`, which is monster-roll rarity):
+```ts
+export const ITEM_RARITY_TEXT   = { common: 'text-slate-300',   rare: 'text-sky-300',    epic: 'text-fuchsia-300',   legendary: 'text-amber-300' };
+export const ITEM_RARITY_BORDER = { common: 'border-slate-600', rare: 'border-sky-500',  epic: 'border-fuchsia-500', legendary: 'border-amber-500' };
+export const ITEM_RARITY_BG     = { common: 'bg-slate-800/60',  rare: 'bg-sky-950/40',   epic: 'bg-fuchsia-950/40',  legendary: 'bg-amber-950/40' };
+export const ITEM_RARITY_LABEL  = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+export const SCRAP_EMOJI        = { common: '🔩', rare: '⚙️', epic: '💠', legendary: '🌟' };
+```
+
+Tests: `npm test` + **`tests/loop.ts` must run and pass** (first server-side change since WP3) — extend with backfill-produced-one-instance-per-copy, `equipItem` by instance id, a manually-set `reforge_level=4` item producing the expected higher stat in `buildPlayerCombatant`, a chest roll on equipment creating an instance not touching `inventory`.
+
+Live verify: hub → roster → equip via instance dropdown → stats change → inventory shows one row marked equipped; rest-room chest landing on equipment creates an instance.
+
+### WP11 — Shop server actions + page
+
+New `src/server/actions/shop.ts`: `getShopState()` → `ShopView{hourBucket, nextResetMs, currency, scrap, listings[]}`; `buyShopSlot(slotIndex)` — **server recomputes the hour bucket from `Date.now()`, client never supplies it** (anti-cheat). Steps: requireUser+ensureProfile → recompute bucket+roll → find slot (404 if gone) → check gold → **insert `shop_purchases` first** (PK collision = already bought this hour, this row is the concurrency lock) → `adjustCurrency(-price)` → grant (scrap→`adjustScrap`, equipment→`insertInstance`, consumable→`grantItem`).
+
+UI: `src/app/(game)/hub/shop/page.tsx` + `ShopListingCard.tsx` + `ShopResetCountdown.tsx` (static `--:--` until mount to avoid hydration mismatch — the codebase already has one unexplained React #418 sighting, don't add another). Two zones (Equipment = indigo accent, Consumables = emerald accent) + a Scrap strip (amber accent). Card: emoji placeholder, rarity-colored border/label, price, Buy button (disabled states for owned/unaffordable). Temporary `Shop →` link on the hub page, removed in WP14. Emoji placeholders only — do not wire `public/monsters/*.png` here, that's monster art not item art.
+
+Tests: `npm test` + `tests/loop.ts` extension (`buyShopSlotDirect`: gold decrements exactly, correct grant lands, second buy of same slot rejected, one `shop_purchases` row). Live verify: buy one of each kind, confirm decrement/grant/owned-state, hard-refresh confirms determinism.
+
+### WP12 — Reforge server action + page
+
+New `src/server/actions/reforge.ts`: `getReforgeState()` → `ReforgeView`; `attemptReforge(instanceId)` — requireUser+instance-ownership check → item must be equipment → `canReforge` else error → scrap balance check → lazily seed `reforge_rng_seed` on first use (`Math.floor(Math.random()*2**31)`, same pattern as `startRun`) → roll, **persist cursor immediately** (mirrors `attemptCatch`) → `adjustScrap(-1)` unconditionally → on success `updateInstanceReforgeLevel` → insert `reforge_attempts` audit row.
+
+UI: `src/app/(game)/hub/reforge/page.tsx` + `ReforgeCard.tsx` + `ScrapBalancePanel.tsx` (4 rarity-colored tiles). Per-instance card: `+N/cap` segmented bar, current vs next bonus, success chance colored by band (≥80% emerald / 50–79% amber / <50% rose), scrap cost+balance, disabled at cap or insufficient scrap. Result banner: success emerald, failure slate/amber (not alarming red — nothing was lost but the scrap). Temporary `Reforge →` link, removed in WP14.
+
+Tests: `npm test` + `tests/loop.ts` extension (`attemptReforgeDirect` with a seeded RNG for deterministic forced-success/forced-failure cases, at-cap rejection, reforged-equipped-item combat-stat increase, audit rows written both outcomes). Live verify: reforge a Minor Charm upward, screenshot the chance ladder dropping, force a failure and confirm level held + only scrap spent, confirm equipped stat contribution increased in the detail modal.
+
+### WP13 — Scrap drops from dungeon clears
+
+`catch.ts` `finishRun`: **full clears only** (`finalStatus === 'completed'`) — deliberate divergence from XP, spec says "clear" not partial. Roll via `createRng(run.rng_seed, run.rng_cursor)` → `rollScrapDrop(rng, dungeon.difficultyTier)` → persist cursor → persist result into `dungeon_runs.scrap_awarded` **in the same `updateRun` call that sets `completed_at`** (piggybacks on the existing idempotency guard, same as `xp_awarded`) → `adjustScrap` per non-zero tier. Return gains `scrapAwarded`.
+
+UI: `SummaryView.tsx` scrap line beside the XP line (hidden if all zero); `DefeatView.tsx` notes scrap only drops on a full clear. New `src/components/hub/ScrapBadge.tsx` next to the existing `CurrencyBadge` in `layout.tsx` (same `ensureProfile` call, no extra query), collapsed chips for non-zero tiers only.
+
+Tests: `npm test` + `tests/loop.ts` extension (full clear awards 1–3 total scrap and persists it, idempotent on double-finish, failed run awards zero). Live verify: full Verdant Hollow clear → summary scrap line → header badge increments → reforge page shows new balance.
+
+### WP14 — Hub 4-button navigation redesign + color pass
+
+`hub/page.tsx` becomes a landing/nav page: header (title + global `CurrencyBadge`+`ScrapBadge`), run-in-progress panel (unchanged), 3-slot team panel (unchanged), then a `grid-cols-2 sm:grid-cols-4` row of 4 nav buttons via new `HubNavButton.tsx`:
+
+| Button | Route | Emoji | Accent |
+|---|---|---|---|
+| Dungeon | `/hub/dungeon` | ⚔️ | `border-rose-500 bg-rose-950/40 text-rose-200` |
+| Inventory | `/hub/inventory` | 🎒 | `border-slate-500 bg-slate-800/60 text-slate-200` |
+| Shop | `/hub/shop` | 🏪 | `border-amber-500 bg-amber-950/40 text-amber-200` |
+| Reforge | `/hub/reforge` | 🔨 | `border-violet-500 bg-violet-950/40 text-violet-200` |
+
+Each carries a one-line subtitle (Dungeon: "Enter a run"; Shop: live countdown; Reforge: scrap count). Dungeon button keeps the existing disabled/reason logic verbatim. New `src/app/(game)/hub/dungeon/page.tsx` — dungeon grid moved out of the hub page unchanged, `← Back to Hub` link matching the inventory page's pattern. Remove the WP11/WP12 temporary text links. Every `(game)/hub/**` page gets the same header shape; rarity colors come exclusively from `itemRarity.ts`.
+
+Tests: `npm test`+`tsc` (client/route-only). Live verify: 4 buttons route correctly, disabled states match old behavior, mobile 390px wraps 2×2 and shop zones stack.
+
+### WP15 — Docs + full live verification pass
+
+Rewrite this section into a "Shipped" section matching the WP1–WP8 style, promote locked decisions into "Game design decisions", add migrations 008–010 to the Data model section. One end-to-end production playthrough: hub nav → dungeon clear → scrap awarded → shop purchase (equipment + scrap) → equip the purchased instance → reforge it up several levels including a failure → verify the bonus in the detail modal **and in actual combat** (compare a combatant's stat pre/post reforge in a real run). Re-run `npx tsc --noEmit`, `npm test`, `tests/loop.ts`, record the new assertion count.
+
+### Invented numbers/rules and their locked defaults
+
+| # | Ambiguity | Locked default |
+|---|---|---|
+| 1 | Gold prices | Equipment 60/150/360/800; consumable 25/60/140/300 (c/r/e/l) |
+| 2 | Scrap price | Per unit 20/50/120/260, bundle of 3 → ×3 |
+| 3 | Shop rarity weights | common 55, rare 28, epic 13, legendary 4 |
+| 4 | Zone split of 5–6 items | ≥2 equipment, ≥2 consumable guaranteed, rest coin-flipped |
+| 5 | Is the scrap listing part of the 5–6? | No — 5–6 items *plus* 1 scrap listing (6–7 rows) |
+| 6 | "Equal chance per scrap rarity" | Uniform 1/4, no progression gating, legendary possible hour 1 |
+| 7 | Can shop items repeat between resets? | Yes across hours; no duplicate id within one hour |
+| 8 | Does unpurchased stock vanish on reset? | Yes — pure function of the bucket, nothing persists |
+| 9 | Shop global or per-player? | Global stock; only the purchased flag is per-player |
+| 10 | Purchases per listing | Once per hour per player per slot |
+| 11 | Can you buy a duplicate of owned equipment? | Yes — instances are per-copy by design |
+| 12 | Scrap tier odds per dungeon tier | See `SCRAP_TIER_WEIGHTS_BY_DUNGEON_TIER` in WP9; tier 1 never drops legendary |
+| 13 | Scrap qty per clear | `1 + floor(rng()*3)` → uniform 1/2/3, each unit's tier independent |
+| 14 | Do failed/abandoned runs drop scrap? | No — full clears only |
+| 15 | Reforge failure semantics | Scrap consumed, level unchanged, no downgrade |
+| 16 | Does reforging cost gold? | No — scrap only |
+| 17 | Can higher-tier scrap substitute for lower? | No — exact rarity match |
+| 18 | Can you reforge an equipped item? | Yes, in place, no re-equip needed |
+| 19 | Are consumables reforgeable? | No |
+| 20 | Rarity of the 4 existing equipment items | Each becomes its stat-line's Common tier; 12 new Rare/Epic/Legendary variants added (16 equipment items total, per-user-instruction) |
+| 21 | Do the new items enter the chest drop table? | Yes, at tiered weights (see table above); total weight 100 → 150 |
+| 22 | Where is scrap stored? | 4 int columns on `profiles`, not a table |
+| 23 | Inventory/instance caps | None |
+| 24 | Sell/salvage items for scrap? | Out of scope for v1 |
+| 25 | Shop rarity fallback when a pool is empty | Step down then up; skip the slot if the whole category is exhausted |
+| 26 | Reforge RNG seed init | Lazily set on first attempt, same pattern as `startRun` |
+
+**Balance note (non-blocking):** a legendary item at 800 gold is several Voidmaw Depths clears deep, and Voidmaw Depths has never been verified winnable (see "Known non-blocking issues"). If the shop feels unreachable in playtesting, the lever is the price constants in `src/lib/game/shop.ts` or `dungeons.gold_reward` — not the reforge formulas, which are locked.
 
 ## Known non-blocking issues
 

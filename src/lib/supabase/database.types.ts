@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -78,6 +78,7 @@ export type Database = {
           rng_cursor: number
           rng_seed: number
           rooms: Json
+          scrap_awarded: Json
           started_at: string
           status: string
           team_snapshot: Json
@@ -101,6 +102,7 @@ export type Database = {
           rng_cursor?: number
           rng_seed?: number
           rooms?: Json
+          scrap_awarded?: Json
           started_at?: string
           status?: string
           team_snapshot?: Json
@@ -124,6 +126,7 @@ export type Database = {
           rng_cursor?: number
           rng_seed?: number
           rooms?: Json
+          scrap_awarded?: Json
           started_at?: string
           status?: string
           team_snapshot?: Json
@@ -241,6 +244,38 @@ export type Database = {
           },
         ]
       }
+      item_instances: {
+        Row: {
+          acquired_at: string
+          id: string
+          item_id: string
+          owner_id: string
+          reforge_level: number
+        }
+        Insert: {
+          acquired_at?: string
+          id?: string
+          item_id: string
+          owner_id: string
+          reforge_level?: number
+        }
+        Update: {
+          acquired_at?: string
+          id?: string
+          item_id?: string
+          owner_id?: string
+          reforge_level?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_instances_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       items: {
         Row: {
           category: string
@@ -250,6 +285,7 @@ export type Database = {
           effect: Json
           id: string
           name: string
+          rarity: string
         }
         Insert: {
           category: string
@@ -259,6 +295,7 @@ export type Database = {
           effect?: Json
           id?: string
           name: string
+          rarity?: string
         }
         Update: {
           category?: string
@@ -268,6 +305,7 @@ export type Database = {
           effect?: Json
           id?: string
           name?: string
+          rarity?: string
         }
         Relationships: []
       }
@@ -312,6 +350,7 @@ export type Database = {
           abilities: Json
           caught_at: string
           current_hp: number | null
+          equipped_instance_id: string | null
           equipped_item_id: string | null
           healing_until: string | null
           id: string
@@ -327,6 +366,7 @@ export type Database = {
           abilities?: Json
           caught_at?: string
           current_hp?: number | null
+          equipped_instance_id?: string | null
           equipped_item_id?: string | null
           healing_until?: string | null
           id?: string
@@ -342,6 +382,7 @@ export type Database = {
           abilities?: Json
           caught_at?: string
           current_hp?: number | null
+          equipped_instance_id?: string | null
           equipped_item_id?: string | null
           healing_until?: string | null
           id?: string
@@ -354,6 +395,13 @@ export type Database = {
           xp?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "monsters_equipped_instance_id_fkey"
+            columns: ["equipped_instance_id"]
+            isOneToOne: false
+            referencedRelation: "item_instances"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "monsters_equipped_item_id_fkey"
             columns: ["equipped_item_id"]
@@ -383,6 +431,12 @@ export type Database = {
           created_at: string
           currency: number
           id: string
+          reforge_rng_cursor: number
+          reforge_rng_seed: number
+          scrap_common: number
+          scrap_epic: number
+          scrap_legendary: number
+          scrap_rare: number
           username: string
         }
         Insert: {
@@ -390,6 +444,12 @@ export type Database = {
           created_at?: string
           currency?: number
           id: string
+          reforge_rng_cursor?: number
+          reforge_rng_seed?: number
+          scrap_common?: number
+          scrap_epic?: number
+          scrap_legendary?: number
+          scrap_rare?: number
           username: string
         }
         Update: {
@@ -397,9 +457,68 @@ export type Database = {
           created_at?: string
           currency?: number
           id?: string
+          reforge_rng_cursor?: number
+          reforge_rng_seed?: number
+          scrap_common?: number
+          scrap_epic?: number
+          scrap_legendary?: number
+          scrap_rare?: number
           username?: string
         }
         Relationships: []
+      }
+      reforge_attempts: {
+        Row: {
+          chance: number
+          created_at: string
+          from_level: number
+          id: string
+          instance_id: string
+          owner_id: string
+          rng_cursor: number
+          rng_seed: number
+          roll: number
+          scrap_rarity: string
+          success: boolean
+          target_level: number
+        }
+        Insert: {
+          chance: number
+          created_at?: string
+          from_level: number
+          id?: string
+          instance_id: string
+          owner_id: string
+          rng_cursor: number
+          rng_seed: number
+          roll: number
+          scrap_rarity: string
+          success: boolean
+          target_level: number
+        }
+        Update: {
+          chance?: number
+          created_at?: string
+          from_level?: number
+          id?: string
+          instance_id?: string
+          owner_id?: string
+          rng_cursor?: number
+          rng_seed?: number
+          roll?: number
+          scrap_rarity?: string
+          success?: boolean
+          target_level?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reforge_attempts_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "item_instances"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       run_room_results: {
         Row: {
@@ -439,6 +558,47 @@ export type Database = {
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "dungeon_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_purchases: {
+        Row: {
+          hour_bucket: number
+          item_id: string | null
+          owner_id: string
+          price_paid: number
+          purchased_at: string
+          quantity: number
+          scrap_rarity: string | null
+          slot_index: number
+        }
+        Insert: {
+          hour_bucket: number
+          item_id?: string | null
+          owner_id: string
+          price_paid: number
+          purchased_at?: string
+          quantity?: number
+          scrap_rarity?: string | null
+          slot_index: number
+        }
+        Update: {
+          hour_bucket?: number
+          item_id?: string | null
+          owner_id?: string
+          price_paid?: number
+          purchased_at?: string
+          quantity?: number
+          scrap_rarity?: string | null
+          slot_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_purchases_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
             referencedColumns: ["id"]
           },
         ]

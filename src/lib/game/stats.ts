@@ -4,7 +4,8 @@ import { applyEquipmentModifier } from './items';
 export function effectiveStats(
   species: MonsterSpecies,
   monster: OwnedMonster,
-  equippedItem: Item | null
+  equippedItem: Item | null,
+  reforgeLevel = 0
 ): Stats {
   const levelMult = 1 + 0.1 * (monster.level - 1);
   const base: Stats = {
@@ -13,7 +14,7 @@ export function effectiveStats(
     def: Math.floor(species.baseStats.def * monster.rolls.def * levelMult),
     spd: Math.floor(species.baseStats.spd * monster.rolls.spd * levelMult),
   };
-  return applyEquipmentModifier(base, equippedItem);
+  return applyEquipmentModifier(base, equippedItem, reforgeLevel);
 }
 
 export function power(stats: Stats): number {

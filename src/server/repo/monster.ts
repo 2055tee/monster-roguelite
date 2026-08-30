@@ -13,6 +13,7 @@ export type MonsterRow = {
   team_slot: 0 | 1 | 2 | null;
   current_hp: number | null;
   equipped_item_id: string | null;
+  equipped_instance_id: string | null;
   is_starter: boolean;
   healing_until: string | null;
   caught_at: string;
@@ -29,6 +30,7 @@ export function mapMonsterRow(row: MonsterRow): OwnedMonster {
     teamSlot: row.team_slot,
     currentHp: row.current_hp,
     equippedItemId: row.equipped_item_id,
+    equippedInstanceId: row.equipped_instance_id,
     isStarter: row.is_starter,
     healingUntil: row.healing_until,
     caughtAt: row.caught_at,
@@ -126,6 +128,7 @@ export async function updateMonster(
   patch: Partial<{
     team_slot: 0 | 1 | 2 | null;
     equipped_item_id: string | null;
+    equipped_instance_id: string | null;
     current_hp: number | null;
     healing_until: string | null;
     level: number;

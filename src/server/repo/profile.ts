@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { ItemRarity } from '@/lib/game/types';
+import { getItemById } from '@/server/repo/catalog';
 
 export type ProfileRow = {
   id: string;
@@ -6,7 +8,17 @@ export type ProfileRow = {
   currency: number;
   bootstrapped: boolean;
   created_at: string;
+  scrap_common: number;
+  scrap_rare: number;
+  scrap_epic: number;
+  scrap_legendary: number;
+  reforge_rng_seed: number;
+  reforge_rng_cursor: number;
 };
+
+function scrapColumn(rarity: ItemRarity): keyof ProfileRow {
+  return (`scrap_${rarity}` as const) as keyof ProfileRow;
+}
 
 export async function getProfile(userId: string): Promise<ProfileRow | null> {
   const admin = createAdminClient();
@@ -46,6 +58,28 @@ export async function adjustCurrency(userId: string, delta: number): Promise<voi
   if (error) throw new Error(`Failed to adjust currency: ${error.message}`);
 }
 
+export async function adjustScrap(userId: string, rarity: ItemRarity, delta: number): Promise<void> {
+  const admin = createAdminClient();
+  const profile = await getProfile(userId);
+  if (!profile) throw new Error(`Profile not found: ${userId}`);
+  const column = scrapColumn(rarity);
+  const current = profile[column] as number;
+  const { error } = await admin
+    .from('profiles')
+    .update({ [column]: Math.max(0, current + delta) })
+    .eq('id', userId);
+  if (error) throw new Error(`Failed to adjust ${rarity} scrap: ${error.message}`);
+}
+
+export async function setReforgeRng(userId: string, seed: number, cursor: number): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('profiles')
+    .update({ reforge_rng_seed: seed, reforge_rng_cursor: cursor })
+    .eq('id', userId);
+  if (error) throw new Error(`Failed to update reforge RNG state: ${error.message}`);
+}
+
 export type InventoryRow = { owner_id: string; item_id: string; quantity: number };
 
 export async function getInventoryRows(userId: string): Promise<InventoryRow[]> {
@@ -67,7 +101,12 @@ export async function getInventoryQuantity(userId: string, itemId: string): Prom
   return (data as { quantity: number } | null)?.quantity ?? 0;
 }
 
+/** Consumables only -- equipment is per-copy and must go through insertInstance instead. */
 export async function grantItem(userId: string, itemId: string, amount = 1): Promise<void> {
+  const item = await getItemById(itemId);
+  if (item?.category === 'equipment') {
+    throw new Error('grantItem cannot be used for equipment items -- use insertInstance instead');
+  }
   const admin = createAdminClient();
   const current = await getInventoryQuantity(userId, itemId);
   if (current === 0) {

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getHubState } from '@/server/actions/hub';
 import { getItemCatalog, getSpeciesCatalog, speciesFallback } from '@/server/repo/catalog-client';
 import { effectiveStats, power } from '@/lib/game/stats';
+import type { Item, OwnedMonster } from '@/lib/game/types';
 import { Panel } from '@/components/ui/Panel';
 import { RosterCard } from '@/components/hub/RosterCard';
 import { TeamSlotDropZone } from '@/components/hub/TeamSlotDropZone';
@@ -32,19 +33,29 @@ export default async function RosterPage() {
   const [speciesCatalog, itemCatalog] = await Promise.all([getSpeciesCatalog(), getItemCatalog()]);
   const lookupSpecies = (speciesId: string) => speciesCatalog[speciesId] ?? speciesFallback(speciesId);
 
-  // Full Item objects (not just id/name) so the equip preview can compute a
-  // real effectiveStats diff before the user commits to a selection.
-  const equipmentOptions = hub.inventory
-    .filter((entry) => entry.category === 'equipment' && entry.quantity > 0)
-    .map((entry) => itemCatalog[entry.itemId])
-    .filter((item): item is NonNullable<typeof item> => !!item);
+  // Every owned equipment instance (one option per physical copy, not per
+  // item type) so the equip preview can compute a real effectiveStats diff
+  // -- including any reforge bonus -- before the user commits to a selection.
+  const equipmentOptions = hub.equipment
+    .map((instance) => {
+      const item = itemCatalog[instance.itemId];
+      return item ? { instanceId: instance.id, item, reforgeLevel: instance.reforgeLevel } : null;
+    })
+    .filter((o): o is NonNullable<typeof o> => !!o);
+  const instanceById = new Map(hub.equipment.map((i) => [i.id, i]));
+
+  function equippedFor(monster: OwnedMonster): { item: Item | null; reforgeLevel: number } {
+    const instance = monster.equippedInstanceId ? instanceById.get(monster.equippedInstanceId) : undefined;
+    const item = instance ? itemCatalog[instance.itemId] ?? null : null;
+    return { item, reforgeLevel: instance?.reforgeLevel ?? 0 };
+  }
 
   // Roster-wide max power, so every card's stat bar is comparable in length.
   const maxPower = hub.roster.reduce((max, monster) => {
     const species = speciesCatalog[monster.speciesId];
     if (!species) return max;
-    const equippedItem = monster.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null;
-    const p = power(effectiveStats(species, monster, equippedItem));
+    const { item, reforgeLevel } = equippedFor(monster);
+    const p = power(effectiveStats(species, monster, item, reforgeLevel));
     return Math.max(max, p);
   }, 0);
 
@@ -74,16 +85,20 @@ export default async function RosterPage() {
             ))}
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {hub.roster.map((monster) => (
-              <RosterCard
-                key={monster.id}
-                monster={monster}
-                species={lookupSpecies(monster.speciesId)}
-                equipmentOptions={equipmentOptions}
-                equippedItem={monster.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null}
-                maxPower={maxPower}
-              />
-            ))}
+            {hub.roster.map((monster) => {
+              const { item, reforgeLevel } = equippedFor(monster);
+              return (
+                <RosterCard
+                  key={monster.id}
+                  monster={monster}
+                  species={lookupSpecies(monster.speciesId)}
+                  equipmentOptions={equipmentOptions}
+                  equippedItem={item}
+                  equippedReforgeLevel={reforgeLevel}
+                  maxPower={maxPower}
+                />
+              );
+            })}
           </div>
         </div>
       )}

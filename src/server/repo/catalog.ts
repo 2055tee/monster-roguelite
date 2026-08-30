@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { Dungeon, Item, MonsterSpecies, Stats } from '@/lib/game/types';
+import type { Dungeon, Item, ItemRarity, MonsterSpecies, Stats } from '@/lib/game/types';
 
 /**
  * Server-side (admin client) catalog reads for species / items / dungeons.
@@ -27,6 +27,7 @@ type ItemRow = {
   description: string;
   effect: Item['effect'];
   drop_weight: number;
+  rarity: ItemRarity;
 };
 
 type DungeonRow = {
@@ -63,6 +64,7 @@ function mapItem(row: ItemRow): Item {
     description: row.description,
     effect: row.effect,
     dropWeight: row.drop_weight,
+    rarity: row.rarity,
   };
 }
 

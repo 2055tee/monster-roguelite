@@ -1,11 +1,16 @@
 'use server';
 
-import type { ActionResult, HubView, OwnedMonster } from '@/lib/game/types';
+import type { ActionResult, HubView, ItemInstance, OwnedMonster, ScrapCounts } from '@/lib/game/types';
 import { effectiveStats } from '@/lib/game/stats';
 import { requireUser } from '@/server/auth';
-import { getAllDungeons, getItemById, getItemByName, getSpeciesById, getSpeciesByName } from '@/server/repo/catalog';
+import { getAllDungeons, getItemById, getItemByName, getSpeciesByName } from '@/server/repo/catalog';
 import {
-  computeMaxHp,
+  getInstanceRow,
+  getInstancesForOwner,
+  getMonsterUsingInstance,
+  mapItemInstanceRow,
+} from '@/server/repo/item-instance';
+import {
   getMonsterRow,
   getRosterRows,
   insertMonster,
@@ -24,7 +29,7 @@ import {
   setBootstrapped,
 } from '@/server/repo/profile';
 import { getInProgressRun } from '@/server/repo/run';
-import { resolveHealingForRows } from '@/server/game-bridge';
+import { getMaxHpFor, resolveHealingForRows } from '@/server/game-bridge';
 
 const STARTER_SPECIES_NAMES = ['Sprigling', 'Cinderpup', 'Pebblet'] as const;
 
@@ -47,6 +52,7 @@ export async function ensureBootstrap(): Promise<void> {
       teamSlot: slot as 0 | 1 | 2,
       currentHp: null,
       equippedItemId: null,
+      equippedInstanceId: null,
       isStarter: true,
       healingUntil: null,
       caughtAt: new Date().toISOString(),
@@ -78,6 +84,7 @@ export async function getHubState(): Promise<HubView> {
   const profile = await ensureProfile(user.id);
   const rosterRows = await resolveHealingForRows(await getRosterRows(user.id));
   const inventoryRows = await getInventoryRows(user.id);
+  const instanceRows = await getInstancesForOwner(user.id);
   const dungeons = await getAllDungeons();
   const activeRun = await getInProgressRun(user.id);
 
@@ -94,11 +101,21 @@ export async function getHubState(): Promise<HubView> {
     inventory.push({ itemId: item.id, name: item.name, category: item.category, quantity: row.quantity });
   }
 
+  const equipment: ItemInstance[] = instanceRows.map(mapItemInstanceRow);
+  const scrap: ScrapCounts = {
+    common: profile.scrap_common,
+    rare: profile.scrap_rare,
+    epic: profile.scrap_epic,
+    legendary: profile.scrap_legendary,
+  };
+
   return {
     currency: profile.currency,
+    scrap,
     team,
     roster,
     inventory,
+    equipment,
     dungeons,
     activeRunId: activeRun?.id ?? null,
   };
@@ -123,26 +140,35 @@ export async function setTeamSlot(monsterId: string, slot: 0 | 1 | 2): Promise<A
   return { ok: true };
 }
 
-export async function equipItem(monsterId: string, itemId: string | null): Promise<ActionResult> {
+export async function equipItem(monsterId: string, instanceId: string | null): Promise<ActionResult> {
   const user = await requireUser();
   const monster = await getMonsterRow(monsterId);
   if (!monster || monster.owner_id !== user.id) {
     return { ok: false, error: 'Monster not found' };
   }
 
-  if (itemId !== null) {
-    const item = await getItemById(itemId);
-    if (!item || item.category !== 'equipment') {
-      return { ok: false, error: 'Item is not equippable' };
-    }
-    const inventoryRows = await getInventoryRows(user.id);
-    const owned = inventoryRows.find((r) => r.item_id === itemId && r.quantity > 0);
-    if (!owned) {
-      return { ok: false, error: 'You do not own this item' };
-    }
+  if (instanceId === null) {
+    await updateMonster(monsterId, { equipped_item_id: null, equipped_instance_id: null });
+    return { ok: true };
   }
 
-  await updateMonster(monsterId, { equipped_item_id: itemId });
+  const instance = await getInstanceRow(instanceId);
+  if (!instance || instance.owner_id !== user.id) {
+    return { ok: false, error: 'You do not own this item' };
+  }
+  const item = await getItemById(instance.item_id);
+  if (!item || item.category !== 'equipment') {
+    return { ok: false, error: 'Item is not equippable' };
+  }
+
+  // An instance is one physical copy -- unequip it from whichever other
+  // monster (if any) currently has it, since it can only be worn by one.
+  const otherHolder = await getMonsterUsingInstance(instanceId);
+  if (otherHolder && otherHolder.id !== monsterId) {
+    await updateMonster(otherHolder.id, { equipped_item_id: null, equipped_instance_id: null });
+  }
+
+  await updateMonster(monsterId, { equipped_item_id: item.id, equipped_instance_id: instanceId });
   return { ok: true };
 }
 
@@ -163,9 +189,7 @@ export async function useElixir(monsterId: string): Promise<ActionResult> {
     return { ok: false, error: 'You do not have a Field Elixir' };
   }
 
-  const species = await getSpeciesById(monster.species_id);
-  const equippedItem = monster.equipped_item_id ? await getItemById(monster.equipped_item_id) : null;
-  const maxHp = computeMaxHp(species, mapMonsterRow(monster), equippedItem);
+  const maxHp = await getMaxHpFor(monster);
 
   await updateMonster(monsterId, { healing_until: null, current_hp: maxHp });
   await consumeItem(user.id, elixir.id, 1);
@@ -191,9 +215,7 @@ export async function skipHealing(monsterId: string): Promise<ActionResult> {
     return { ok: false, error: 'Not enough currency' };
   }
 
-  const species = await getSpeciesById(monster.species_id);
-  const equippedItem = monster.equipped_item_id ? await getItemById(monster.equipped_item_id) : null;
-  const maxHp = computeMaxHp(species, mapMonsterRow(monster), equippedItem);
+  const maxHp = await getMaxHpFor(monster);
 
   await adjustCurrency(user.id, -cost);
   await updateMonster(monsterId, { healing_until: null, current_hp: maxHp });

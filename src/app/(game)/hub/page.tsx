@@ -34,6 +34,7 @@ export default async function HubPage() {
 
   const [speciesCatalog, itemCatalog] = await Promise.all([getSpeciesCatalog(), getItemCatalog()]);
   const lookupSpecies = (speciesId: string) => speciesCatalog[speciesId] ?? speciesFallback(speciesId);
+  const instanceById = new Map(hub.equipment.map((i) => [i.id, i]));
 
   const readyTeamCount = hub.team.filter((m) => m && !isHealingNow(m.healingUntil)).length;
   const teamReady = readyTeamCount >= 3;
@@ -58,15 +59,20 @@ export default async function HubPage() {
 
       <Panel title="Your Team">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {hub.team.map((monster, idx) => (
-            <TeamSlotCard
-              key={idx}
-              slot={idx as 0 | 1 | 2}
-              monster={monster}
-              species={monster ? lookupSpecies(monster.speciesId) : null}
-              equippedItem={monster?.equippedItemId ? itemCatalog[monster.equippedItemId] ?? null : null}
-            />
-          ))}
+          {hub.team.map((monster, idx) => {
+            const instance = monster?.equippedInstanceId ? instanceById.get(monster.equippedInstanceId) : undefined;
+            const equippedItem = instance ? itemCatalog[instance.itemId] ?? null : null;
+            return (
+              <TeamSlotCard
+                key={idx}
+                slot={idx as 0 | 1 | 2}
+                monster={monster}
+                species={monster ? lookupSpecies(monster.speciesId) : null}
+                equippedItem={equippedItem}
+                equippedReforgeLevel={instance?.reforgeLevel ?? 0}
+              />
+            );
+          })}
         </div>
         <div className="mt-3 flex gap-3 text-sm">
           <Link href="/hub/monsters" className="text-indigo-400 hover:underline">

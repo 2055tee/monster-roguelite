@@ -8,6 +8,15 @@ function mulberry32(a: number): () => number {
   };
 }
 
+/** splitmix32 finalizer -- maps any integer (e.g. an hour bucket) to a well-distributed 32-bit seed. */
+export function hash32(n: number): number {
+  let x = n | 0;
+  x = Math.imul(x ^ (x >>> 16), 0x85ebca6b);
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+  x = (x ^ (x >>> 16)) >>> 0;
+  return x;
+}
+
 export function createRng(seed: number, cursor: number): { next: () => number; cursor: number } {
   const gen = mulberry32(seed);
 

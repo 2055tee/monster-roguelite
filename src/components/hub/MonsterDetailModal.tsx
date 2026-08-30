@@ -2,13 +2,19 @@
 
 import { useState } from 'react';
 
+import Image from 'next/image';
+
 import { getAbility } from '@/lib/game/abilities';
+import { effectValueAtLevel } from '@/lib/game/reforge';
 import { effectiveStats, power } from '@/lib/game/stats';
+import { speciesArtUrl } from '@/lib/game/species-art';
 import type { Item, MonsterSpecies, OwnedMonster, Stats } from '@/lib/game/types';
+import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import { Modal } from '@/components/ui/Modal';
 import { XpBar } from '@/components/ui/XpBar';
 import { AssignSlotButtons } from './AssignSlotButtons';
-import { EquipSelect } from './EquipSelect';
+import { EquipSelect, type EquipOption } from './EquipSelect';
+import { ITEM_RARITY_TEXT } from './itemRarity';
 import { formatRoll, isHealingNow, rarityColorClass, rarityLabel } from './rarity';
 
 const STAT_ORDER: { key: keyof Stats; label: string }[] = [
@@ -24,6 +30,7 @@ export function MonsterDetailModal({
   monster,
   species,
   equippedItem,
+  equippedReforgeLevel,
   equipmentOptions,
 }: {
   open: boolean;
@@ -31,33 +38,46 @@ export function MonsterDetailModal({
   monster: OwnedMonster;
   species: MonsterSpecies | null;
   equippedItem: Item | null;
-  equipmentOptions: Item[];
+  equippedReforgeLevel: number;
+  equipmentOptions: EquipOption[];
 }) {
-  const [previewItemId, setPreviewItemId] = useState<string | null>(equippedItem?.id ?? null);
+  const [previewInstanceId, setPreviewInstanceId] = useState<string | null>(monster.equippedInstanceId);
 
   const label = rarityLabel(monster.rolls);
   const isHealing = isHealingNow(monster.healingUntil);
   const preItem = species ? effectiveStats(species, monster, null) : null;
-  const final = species ? effectiveStats(species, monster, equippedItem) : null;
+  const final = species ? effectiveStats(species, monster, equippedItem, equippedReforgeLevel) : null;
 
-  const previewItem = previewItemId ? equipmentOptions.find((i) => i.id === previewItemId) ?? null : null;
-  const isPreviewingChange = previewItemId !== (equippedItem?.id ?? null);
-  const previewStats = isPreviewingChange && species ? effectiveStats(species, monster, previewItem) : null;
+  const previewOption = previewInstanceId
+    ? equipmentOptions.find((o) => o.instanceId === previewInstanceId) ?? null
+    : null;
+  const isPreviewingChange = previewInstanceId !== monster.equippedInstanceId;
+  const previewStats =
+    isPreviewingChange && species
+      ? effectiveStats(species, monster, previewOption?.item ?? null, previewOption?.reforgeLevel ?? 0)
+      : null;
 
   const abilityIds = ['basic_attack', ...monster.abilities];
+  const artUrl = species ? speciesArtUrl(species.name) : null;
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={
-        <span>
-          {species?.emoji ?? '❓'} {species?.name ?? monster.speciesId}{' '}
+        <span className="inline-flex items-center gap-1.5">
+          <SpeciesIcon name={species?.name ?? ''} emoji={species?.emoji ?? '❓'} size={26} />
+          {species?.name ?? monster.speciesId}{' '}
           <span className={`text-xs font-semibold ${rarityColorClass(label)}`}>{label}</span>
         </span>
       }
     >
       <div className="flex max-h-[75vh] flex-col gap-4 overflow-y-auto pr-1">
+        {artUrl && (
+          <div className="relative mx-auto aspect-video w-full max-w-sm overflow-hidden rounded-lg border border-slate-700">
+            <Image src={artUrl} alt={species?.name ?? ''} fill className="object-cover" />
+          </div>
+        )}
         <XpBar level={monster.level} xp={monster.xp} />
 
         {preItem && final && (
@@ -91,7 +111,10 @@ export function MonsterDetailModal({
                         <td className="py-1 pr-2">{preItem[key]}</td>
                         <td className="py-1 pr-2">
                           {itemAffectsThis && equippedItem?.effect.type === 'stat_pct'
-                            ? `${equippedItem.effect.value >= 0 ? '+' : ''}${Math.round(equippedItem.effect.value * 100)}%`
+                            ? (() => {
+                                const effectiveValue = effectValueAtLevel(equippedItem.effect.value, equippedReforgeLevel);
+                                return `${effectiveValue >= 0 ? '+' : ''}${Math.round(effectiveValue * 100)}%`;
+                              })()
                             : '—'}
                         </td>
                         <td className="py-1 pr-2 font-semibold text-slate-100">
@@ -163,12 +186,20 @@ export function MonsterDetailModal({
         <div className="flex flex-col gap-2 border-t border-slate-700 pt-3">
           <p className="text-xs font-semibold text-slate-400">Team slot</p>
           <AssignSlotButtons monsterId={monster.id} currentSlot={monster.teamSlot} />
-          <p className="mt-1 text-xs font-semibold text-slate-400">Equipped item</p>
+          <p className="mt-1 text-xs font-semibold text-slate-400">
+            Equipped item
+            {equippedItem && (
+              <span className={`ml-1 font-normal ${ITEM_RARITY_TEXT[equippedItem.rarity]}`}>
+                {equippedItem.name}
+                {equippedReforgeLevel > 0 ? ` +${equippedReforgeLevel}` : ''}
+              </span>
+            )}
+          </p>
           <EquipSelect
             monsterId={monster.id}
-            equippedItemId={monster.equippedItemId}
+            equippedInstanceId={monster.equippedInstanceId}
             options={equipmentOptions}
-            onPreviewChange={setPreviewItemId}
+            onPreviewChange={setPreviewInstanceId}
           />
         </div>
       </div>

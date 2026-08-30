@@ -1,3 +1,4 @@
+import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import type { Combatant, EncounterState } from '@/lib/game/types';
 
 type TurnOrderPanelProps = {
@@ -33,7 +34,7 @@ function QueueRow({ combatant, isNow }: QueueEntry) {
         isNow ? 'ring-2 ring-indigo-400' : ''
       }`}
     >
-      <span className="text-base leading-none">{combatant.emoji}</span>
+      <SpeciesIcon name={combatant.name} emoji={combatant.emoji} size={20} className="shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium text-slate-100">{combatant.name}</span>
         <span className="text-[10px] text-slate-400">Lv{combatant.level}</span>

@@ -18,6 +18,7 @@ describe('applyEquipmentModifier', () => {
       description: 'x',
       effect: { type: 'catch_bonus', value: 0.1 },
       dropWeight: 1,
+      rarity: 'common',
     };
     expect(applyEquipmentModifier(base, item)).toEqual(base);
   });
@@ -30,12 +31,28 @@ describe('applyEquipmentModifier', () => {
       description: 'x',
       effect: { type: 'stat_pct', stat: 'atk', value: 0.5 },
       dropWeight: 1,
+      rarity: 'common',
     };
     const result = applyEquipmentModifier(base, item);
     expect(result.atk).toBe(30); // floor(20 * 1.5)
     expect(result.hp).toBe(100);
     expect(result.def).toBe(10);
     expect(result.spd).toBe(5);
+  });
+
+  it('scales the modifier up with reforge level', () => {
+    const item: Item = {
+      id: 'charm',
+      name: 'Minor Charm',
+      category: 'equipment',
+      description: 'x',
+      effect: { type: 'stat_pct', stat: 'atk', value: 0.1 },
+      dropWeight: 1,
+      rarity: 'common',
+    };
+    // +6 -> value*1.30 = 0.13 -> floor(20*1.13) = 22
+    const result = applyEquipmentModifier(base, item, 6);
+    expect(result.atk).toBe(22);
   });
 });
 
@@ -61,6 +78,7 @@ describe('effectiveStats + power', () => {
     teamSlot: 0,
     currentHp: null,
     equippedItemId: null,
+    equippedInstanceId: null,
     isStarter: true,
     healingUntil: null,
     caughtAt: new Date().toISOString(),

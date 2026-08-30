@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { StatBar } from '@/components/ui/StatBar';
@@ -96,8 +97,9 @@ export function CombatView({
         } ${isTarget && !isDead ? 'cursor-pointer hover:ring-2 hover:ring-amber-400' : ''}`}
       >
         <div className="mb-1 flex items-center justify-between text-sm">
-          <span>
-            {combatant.emoji} {combatant.name}{' '}
+          <span className="inline-flex items-center gap-1.5">
+            <SpeciesIcon name={combatant.name} emoji={combatant.emoji} size={22} />
+            {combatant.name}{' '}
             <span className="text-xs text-slate-400">Lv{combatant.level}</span>
           </span>
           {isDead && <span className="text-xs font-semibold text-red-400">FAINTED</span>}

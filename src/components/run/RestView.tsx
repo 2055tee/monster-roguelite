@@ -7,7 +7,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Panel } from '@/components/ui/Panel';
 import { chooseRestOption } from '@/server/actions/run';
 import { speciesName } from './format';
-import type { MonsterSpecies, OwnedMonster, RunView } from '@/lib/game/types';
+import type { ItemRarity, MonsterSpecies, OwnedMonster, RunView } from '@/lib/game/types';
+import { ITEM_RARITY_TEXT } from '@/components/hub/itemRarity';
 
 type RestViewProps = {
   runId: string;
@@ -23,7 +24,7 @@ export function RestView({ runId, team, busy, runAction, onContinue, speciesCata
   const [result, setResult] = useState<{
     before: OwnedMonster[];
     after: RunView;
-    grantedItem: { id: string; name: string; category: string } | null;
+    grantedItem: { id: string; name: string; category: string; rarity: ItemRarity; instanceId: string | null } | null;
   } | null>(null);
 
   async function confirm() {
@@ -52,7 +53,7 @@ export function RestView({ runId, team, busy, runAction, onContinue, speciesCata
           {result.grantedItem ? (
             <p className="text-sm text-slate-300">
               You opened the chest and found{' '}
-              <strong className="text-amber-300">{result.grantedItem.name}</strong>
+              <strong className={ITEM_RARITY_TEXT[result.grantedItem.rarity]}>{result.grantedItem.name}</strong>
               {result.grantedItem.category === 'equipment' ? ' (equipment)' : ' (consumable)'}!
             </p>
           ) : anyHealed ? (

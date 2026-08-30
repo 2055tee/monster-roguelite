@@ -23,12 +23,25 @@ export const SPECIES_IDS = {
 
 export const ITEM_IDS = {
   'Minor Charm': '24617607-69e6-4e30-9d64-0b061b9c7851',
+  'Charm of Force': '1dfe93ec-069a-4fb8-923d-4229cda65c05',
+  'Charm of Conquest': 'b6fa21e7-c6b3-4f72-b47e-4d47fa85de71',
+  'Charm of Ascendance': '57afcc96-6e20-410b-b625-5eec3a2078d8',
   'Guard Plate': 'a8a0c997-deb0-47ca-8f8b-8158e28ef7d3',
+  'Bastion Plate': 'e3c0c640-b80e-4ce1-9542-8d013e94eb25',
+  'Aegis Plate': 'd0b1f718-415e-4fe8-a3ee-468b4205bdbf',
+  'Sovereign Plate': '46983921-6295-4c17-82b6-8dcbe40e17e8',
   'Swift Band': '7ffb38c8-5edb-4428-8ff0-c483923e6109',
+  'Gale Band': '04ee6928-c35d-416b-8d53-1f40eeda515e',
+  'Tempest Band': '27f09e11-7422-4389-b774-de92b5f18bee',
+  'Zephyr Band': '111470f5-60b1-4b3d-a055-0c69e0d842f2',
   'Vital Locket': '259c14d9-fcd8-409e-915d-1ca1b21c495b',
+  'Locket of Vigor': 'b82124ff-af11-43e8-bb25-94f01b6dde6d',
+  'Locket of Vitality': '300cafde-d647-42f0-9068-cf3d61582e12',
+  'Locket of Eternity': '7ed9c6f3-da79-4b3e-af72-431fff0ee1e3',
   'Lure Bait': 'f7b9f7ad-ffa3-4848-949b-840174e1525b',
   'Prime Lure': 'fd374698-da3b-4c33-a0b2-5f5e3b2b7f74',
   'Field Elixir': '55b73150-2761-4d54-bad5-3cde2e18b1a2',
+  'Grand Lure': 'b79e39ac-0710-4aa9-9884-4681f0f6db00',
 } as const;
 
 export const DUNGEON_IDS = {
@@ -131,6 +144,7 @@ export const SEED_SPECIES: MonsterSpecies[] = [
 ];
 
 export const SEED_ITEMS: Item[] = [
+  // ATK line (Minor Charm)
   {
     id: ITEM_IDS['Minor Charm'],
     name: 'Minor Charm',
@@ -138,7 +152,36 @@ export const SEED_ITEMS: Item[] = [
     description: '+10% ATK',
     effect: { type: 'stat_pct', stat: 'atk', value: 0.1 },
     dropWeight: 22,
+    rarity: 'common',
   },
+  {
+    id: ITEM_IDS['Charm of Force'],
+    name: 'Charm of Force',
+    category: 'equipment',
+    description: '+18% ATK',
+    effect: { type: 'stat_pct', stat: 'atk', value: 0.18 },
+    dropWeight: 9,
+    rarity: 'rare',
+  },
+  {
+    id: ITEM_IDS['Charm of Conquest'],
+    name: 'Charm of Conquest',
+    category: 'equipment',
+    description: '+28% ATK',
+    effect: { type: 'stat_pct', stat: 'atk', value: 0.28 },
+    dropWeight: 4,
+    rarity: 'epic',
+  },
+  {
+    id: ITEM_IDS['Charm of Ascendance'],
+    name: 'Charm of Ascendance',
+    category: 'equipment',
+    description: '+40% ATK',
+    effect: { type: 'stat_pct', stat: 'atk', value: 0.4 },
+    dropWeight: 1,
+    rarity: 'legendary',
+  },
+  // DEF line (Guard Plate)
   {
     id: ITEM_IDS['Guard Plate'],
     name: 'Guard Plate',
@@ -146,7 +189,36 @@ export const SEED_ITEMS: Item[] = [
     description: '+15% DEF',
     effect: { type: 'stat_pct', stat: 'def', value: 0.15 },
     dropWeight: 18,
+    rarity: 'common',
   },
+  {
+    id: ITEM_IDS['Bastion Plate'],
+    name: 'Bastion Plate',
+    category: 'equipment',
+    description: '+24% DEF',
+    effect: { type: 'stat_pct', stat: 'def', value: 0.24 },
+    dropWeight: 8,
+    rarity: 'rare',
+  },
+  {
+    id: ITEM_IDS['Aegis Plate'],
+    name: 'Aegis Plate',
+    category: 'equipment',
+    description: '+36% DEF',
+    effect: { type: 'stat_pct', stat: 'def', value: 0.36 },
+    dropWeight: 3,
+    rarity: 'epic',
+  },
+  {
+    id: ITEM_IDS['Sovereign Plate'],
+    name: 'Sovereign Plate',
+    category: 'equipment',
+    description: '+50% DEF',
+    effect: { type: 'stat_pct', stat: 'def', value: 0.5 },
+    dropWeight: 1,
+    rarity: 'legendary',
+  },
+  // SPD line (Swift Band)
   {
     id: ITEM_IDS['Swift Band'],
     name: 'Swift Band',
@@ -154,7 +226,36 @@ export const SEED_ITEMS: Item[] = [
     description: '+15% SPD',
     effect: { type: 'stat_pct', stat: 'spd', value: 0.15 },
     dropWeight: 15,
+    rarity: 'common',
   },
+  {
+    id: ITEM_IDS['Gale Band'],
+    name: 'Gale Band',
+    category: 'equipment',
+    description: '+24% SPD',
+    effect: { type: 'stat_pct', stat: 'spd', value: 0.24 },
+    dropWeight: 7,
+    rarity: 'rare',
+  },
+  {
+    id: ITEM_IDS['Tempest Band'],
+    name: 'Tempest Band',
+    category: 'equipment',
+    description: '+36% SPD',
+    effect: { type: 'stat_pct', stat: 'spd', value: 0.36 },
+    dropWeight: 3,
+    rarity: 'epic',
+  },
+  {
+    id: ITEM_IDS['Zephyr Band'],
+    name: 'Zephyr Band',
+    category: 'equipment',
+    description: '+50% SPD',
+    effect: { type: 'stat_pct', stat: 'spd', value: 0.5 },
+    dropWeight: 1,
+    rarity: 'legendary',
+  },
+  // HP line (Vital Locket)
   {
     id: ITEM_IDS['Vital Locket'],
     name: 'Vital Locket',
@@ -162,7 +263,36 @@ export const SEED_ITEMS: Item[] = [
     description: '+12% max HP',
     effect: { type: 'stat_pct', stat: 'hp', value: 0.12 },
     dropWeight: 15,
+    rarity: 'common',
   },
+  {
+    id: ITEM_IDS['Locket of Vigor'],
+    name: 'Locket of Vigor',
+    category: 'equipment',
+    description: '+20% max HP',
+    effect: { type: 'stat_pct', stat: 'hp', value: 0.2 },
+    dropWeight: 7,
+    rarity: 'rare',
+  },
+  {
+    id: ITEM_IDS['Locket of Vitality'],
+    name: 'Locket of Vitality',
+    category: 'equipment',
+    description: '+30% max HP',
+    effect: { type: 'stat_pct', stat: 'hp', value: 0.3 },
+    dropWeight: 3,
+    rarity: 'epic',
+  },
+  {
+    id: ITEM_IDS['Locket of Eternity'],
+    name: 'Locket of Eternity',
+    category: 'equipment',
+    description: '+42% max HP',
+    effect: { type: 'stat_pct', stat: 'hp', value: 0.42 },
+    dropWeight: 1,
+    rarity: 'legendary',
+  },
+  // Consumables
   {
     id: ITEM_IDS['Lure Bait'],
     name: 'Lure Bait',
@@ -170,6 +300,7 @@ export const SEED_ITEMS: Item[] = [
     description: '+15pp catch chance',
     effect: { type: 'catch_bonus', value: 0.15 },
     dropWeight: 18,
+    rarity: 'common',
   },
   {
     id: ITEM_IDS['Prime Lure'],
@@ -178,6 +309,7 @@ export const SEED_ITEMS: Item[] = [
     description: '+30pp catch chance',
     effect: { type: 'catch_bonus', value: 0.3 },
     dropWeight: 9,
+    rarity: 'rare',
   },
   {
     id: ITEM_IDS['Field Elixir'],
@@ -186,6 +318,16 @@ export const SEED_ITEMS: Item[] = [
     description: 'Instantly finishes healing on one monster',
     effect: { type: 'instant_heal' },
     dropWeight: 3,
+    rarity: 'rare',
+  },
+  {
+    id: ITEM_IDS['Grand Lure'],
+    name: 'Grand Lure',
+    category: 'consumable',
+    description: '+45pp catch chance',
+    effect: { type: 'catch_bonus', value: 0.45 },
+    dropWeight: 2,
+    rarity: 'epic',
   },
 ];
 

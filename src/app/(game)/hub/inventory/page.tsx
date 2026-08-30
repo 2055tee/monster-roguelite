@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getHubState } from '@/server/actions/hub';
 import { getItemCatalog, getSpeciesCatalog, speciesFallback } from '@/server/repo/catalog-client';
 import { Panel } from '@/components/ui/Panel';
+import { EquipmentInstanceRow } from '@/components/hub/EquipmentInstanceRow';
 import { InventoryItemRow } from '@/components/hub/InventoryItemRow';
 import { SkipHealingButton } from '@/components/hub/SkipHealingButton';
 import { isHealingNow } from '@/components/hub/rarity';
@@ -37,8 +38,12 @@ export default async function InventoryPage() {
     label: `${lookupSpecies(m.speciesId).emoji} ${lookupSpecies(m.speciesId).name} (Lv ${m.level})`,
   }));
 
-  const equipment = hub.inventory.filter((entry) => entry.category === 'equipment');
   const consumables = hub.inventory.filter((entry) => entry.category === 'consumable');
+  const monsterNameByInstanceId = new Map(
+    hub.roster
+      .filter((m) => m.equippedInstanceId)
+      .map((m) => [m.equippedInstanceId as string, lookupSpecies(m.speciesId).name])
+  );
 
   const healingMonsters = hub.roster.filter((m) => isHealingNow(m.healingUntil));
 
@@ -67,17 +72,19 @@ export default async function InventoryPage() {
       ) : null}
 
       <Panel title="Equipment">
-        {equipment.length === 0 ? (
+        {hub.equipment.length === 0 ? (
           <p className="text-sm text-slate-500">No equipment owned yet.</p>
         ) : (
-          equipment.map((entry) => (
-            <InventoryItemRow
-              key={entry.itemId}
-              entry={entry}
-              catalogItem={itemCatalog[entry.itemId] ?? null}
-              roster={rosterOptions}
-            />
-          ))
+          <div className="flex flex-col gap-2">
+            {hub.equipment.map((instance) => (
+              <EquipmentInstanceRow
+                key={instance.id}
+                instance={instance}
+                item={itemCatalog[instance.itemId] ?? null}
+                equippedByName={monsterNameByInstanceId.get(instance.id) ?? null}
+              />
+            ))}
+          </div>
         )}
       </Panel>
 

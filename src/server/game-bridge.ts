@@ -5,20 +5,40 @@
  * multiple action files need, kept out of repo/ to keep that layer pure
  * data-access.
  */
-import type { Combatant, OwnedMonster, RunView } from '@/lib/game/types';
+import type { Combatant, Item, OwnedMonster, RunView } from '@/lib/game/types';
 import { effectiveStats, power } from '@/lib/game/stats';
 import { getItemById, getSpeciesById } from '@/server/repo/catalog';
 import { getDungeonById } from '@/server/repo/catalog';
 import { getEncounterForRoom } from '@/server/repo/encounter';
+import { getInstanceRow } from '@/server/repo/item-instance';
 import { getMonsterRowsByIds, mapMonsterRow, updateMonster, type MonsterRow } from '@/server/repo/monster';
 import type { DungeonRunRow } from '@/server/repo/run';
+
+/**
+ * Resolves a monster row's equipped item + its reforge level via the
+ * per-copy item_instances table. This is the single point where reforge
+ * bonuses enter combat/stat calculations -- every caller that needs a
+ * monster's equipped item should go through this rather than reading
+ * equipped_item_id directly, so reforge levels are never silently dropped.
+ */
+export async function getEquippedContext(row: MonsterRow): Promise<{ item: Item | null; reforgeLevel: number }> {
+  if (!row.equipped_instance_id) {
+    return { item: null, reforgeLevel: 0 };
+  }
+  const instance = await getInstanceRow(row.equipped_instance_id);
+  if (!instance) {
+    return { item: null, reforgeLevel: 0 };
+  }
+  const item = await getItemById(instance.item_id);
+  return { item, reforgeLevel: instance.reforge_level };
+}
 
 /** Build a player-side Combatant for a monster row, fetching species+item as needed. */
 export async function buildPlayerCombatant(row: MonsterRow): Promise<Combatant> {
   const species = await getSpeciesById(row.species_id);
-  const item = row.equipped_item_id ? await getItemById(row.equipped_item_id) : null;
+  const { item, reforgeLevel } = await getEquippedContext(row);
   const owned = mapMonsterRow(row);
-  const stats = effectiveStats(species, owned, item);
+  const stats = effectiveStats(species, owned, item, reforgeLevel);
   return {
     id: row.id,
     side: 'player',
@@ -46,9 +66,9 @@ export async function computeTeamPower(rows: MonsterRow[]): Promise<number> {
 
 export async function getMaxHpFor(row: MonsterRow): Promise<number> {
   const species = await getSpeciesById(row.species_id);
-  const item = row.equipped_item_id ? await getItemById(row.equipped_item_id) : null;
+  const { item, reforgeLevel } = await getEquippedContext(row);
   const owned = mapMonsterRow(row);
-  return effectiveStats(species, owned, item).hp;
+  return effectiveStats(species, owned, item, reforgeLevel).hp;
 }
 
 /**

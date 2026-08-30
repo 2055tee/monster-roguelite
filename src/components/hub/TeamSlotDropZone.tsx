@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { setTeamSlot } from '@/server/actions/hub';
 import type { MonsterSpecies, OwnedMonster } from '@/lib/game/types';
+import { SpeciesIcon } from '@/components/shared/SpeciesIcon';
 import { Card } from '@/components/ui/Card';
 import { XpBar } from '@/components/ui/XpBar';
 
@@ -61,8 +62,9 @@ export function TeamSlotDropZone({
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Slot {slot}</p>
       {monster && species ? (
         <>
-          <span className="text-sm font-semibold text-slate-100">
-            {species.emoji} {species.name}
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-100">
+            <SpeciesIcon name={species.name} emoji={species.emoji} size={28} />
+            {species.name}
           </span>
           <XpBar level={monster.level} xp={monster.xp} />
         </>

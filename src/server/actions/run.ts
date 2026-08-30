@@ -1,6 +1,6 @@
 'use server';
 
-import type { ActionError, ActionResult, Combatant, RunView } from '@/lib/game/types';
+import type { ActionError, ActionResult, Combatant, ItemRarity, RunView } from '@/lib/game/types';
 import { buildEnemy, initEncounter, runEnemyTurnsUntilPlayer } from '@/lib/game/combat';
 import { computeExpectedTurns } from '@/lib/game/dungeon';
 import { power } from '@/lib/game/stats';
@@ -9,6 +9,7 @@ import { rollChest } from '@/lib/game/catch';
 import { requireUser } from '@/server/auth';
 import { getAllItems, getDungeonById, getSpeciesById } from '@/server/repo/catalog';
 import { getEncounterForRoom, insertEncounter } from '@/server/repo/encounter';
+import { insertInstance } from '@/server/repo/item-instance';
 import { getMonsterRowsByIds, getTeamRows, updateMonster } from '@/server/repo/monster';
 import { getInProgressRun, getRoomResult, getRunRow, insertRoomResult, insertRun, updateRun } from '@/server/repo/run';
 import { grantItem } from '@/server/repo/profile';
@@ -159,7 +160,10 @@ export async function enterRoom(runId: string): Promise<RunView> {
 export async function chooseRestOption(
   runId: string,
   choice: 'heal' | 'chest'
-): Promise<{ view: RunView; grantedItem: { id: string; name: string; category: string } | null }> {
+): Promise<{
+  view: RunView;
+  grantedItem: { id: string; name: string; category: string; rarity: ItemRarity; instanceId: string | null } | null;
+}> {
   const { run } = await loadOwnedRun(runId);
   if (run.status !== 'in_progress') {
     throw new Error('Run is not in progress');
@@ -177,7 +181,13 @@ export async function chooseRestOption(
   }
 
   const teamRows = await getMonsterRowsByIds(run.team_snapshot);
-  let grantedItem: { id: string; name: string; category: string } | null = null;
+  let grantedItem: {
+    id: string;
+    name: string;
+    category: string;
+    rarity: ItemRarity;
+    instanceId: string | null;
+  } | null = null;
 
   if (choice === 'heal') {
     for (const row of teamRows) {
@@ -193,7 +203,14 @@ export async function chooseRestOption(
     const rng = createRng(run.rng_seed, run.rng_cursor);
     const itemId = rollChest(rng, dropTable);
     await updateRun(run.id, { rng_cursor: rng.cursor });
-    await grantItem(run.owner_id, itemId, 1);
+    const item = items.find((i) => i.id === itemId);
+    let instanceId: string | null = null;
+    if (item?.category === 'equipment') {
+      const instance = await insertInstance(run.owner_id, itemId);
+      instanceId = instance.id;
+    } else {
+      await grantItem(run.owner_id, itemId, 1);
+    }
     await insertRoomResult({
       runId: run.id,
       roomIndex: run.current_room_index,
@@ -201,9 +218,8 @@ export async function chooseRestOption(
       choice: 'chest',
       itemId,
     });
-    const item = items.find((i) => i.id === itemId);
     if (item) {
-      grantedItem = { id: item.id, name: item.name, category: item.category };
+      grantedItem = { id: item.id, name: item.name, category: item.category, rarity: item.rarity, instanceId };
     }
   }
 

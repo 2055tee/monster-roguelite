@@ -22,10 +22,14 @@ export type OwnedMonster = {
   teamSlot: 0 | 1 | 2 | null;
   currentHp: number | null;
   equippedItemId: string | null;
+  equippedInstanceId: string | null;
   isStarter: boolean;
   healingUntil: string | null;
   caughtAt: string;
 };
+
+export type ItemRarity = 'common' | 'rare' | 'epic' | 'legendary';
+export type ScrapCounts = Record<ItemRarity, number>;
 
 export type ItemEffect =
   | { type: 'stat_pct'; stat: keyof Stats; value: number }
@@ -39,6 +43,15 @@ export type Item = {
   description: string;
   effect: ItemEffect;
   dropWeight: number;
+  rarity: ItemRarity;
+};
+
+/** A specific owned copy of an equipment Item, carrying its own reforge progress. */
+export type ItemInstance = {
+  id: string;
+  itemId: string;
+  reforgeLevel: number;
+  acquiredAt: string;
 };
 
 export type Dungeon = {
@@ -113,9 +126,12 @@ export type RunView = {
 
 export type HubView = {
   currency: number;
+  scrap: ScrapCounts;
   team: (OwnedMonster | null)[];
   roster: OwnedMonster[];
+  /** Consumables only -- equipment is per-copy and lives in `equipment` instead. */
   inventory: { itemId: string; name: string; category: string; quantity: number }[];
+  equipment: ItemInstance[];
   dungeons: Dungeon[];
   activeRunId: string | null;
 };

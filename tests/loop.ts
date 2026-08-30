@@ -55,7 +55,13 @@ import {
 } from '../src/server/repo/profile';
 import { getEncounterForRoom, getEncountersForRun, insertEncounter, updateEncounter } from '../src/server/repo/encounter';
 import { getInProgressRun, getRoomResult, getRunRow, insertRoomResult, insertRun, updateRun } from '../src/server/repo/run';
-import { buildPlayerCombatants, buildRunView, computeTeamPower, getMaxHpFor } from '../src/server/game-bridge';
+import {
+  getInstanceRow,
+  getInstancesForOwner,
+  insertInstance,
+  updateInstanceReforgeLevel,
+} from '../src/server/repo/item-instance';
+import { buildPlayerCombatant, buildPlayerCombatants, buildRunView, computeTeamPower, getMaxHpFor } from '../src/server/game-bridge';
 
 const admin = createAdminClient();
 
@@ -90,6 +96,7 @@ async function main() {
     await testRunToBoss(userId, runId1);
     await testCatchAndFinish(userId, runId1);
     await testDoubleStartRejectedAndAbandon(userId);
+    await testItemInstancesAndReforge(userId);
   } finally {
     await cleanup(userId);
   }
@@ -125,6 +132,7 @@ async function testBootstrap(userId: string) {
       teamSlot: slot as 0 | 1 | 2,
       currentHp: null,
       equippedItemId: null,
+      equippedInstanceId: null,
       isStarter: true,
       healingUntil: null,
       caughtAt: new Date().toISOString(),
@@ -664,6 +672,7 @@ async function attemptCatchDirect(runId: string, consumableItemIds: string[]) {
       teamSlot: null,
       currentHp: null,
       equippedItemId: null,
+      equippedInstanceId: null,
       isStarter: false,
       healingUntil: null,
       caughtAt: new Date().toISOString(),
@@ -793,6 +802,50 @@ async function testDoubleStartRejectedAndAbandon(userId: string) {
   assert(noneInProgress === null, 'no in-progress run after abandon');
 }
 
+async function testItemInstancesAndReforge(userId: string) {
+  console.log('\n== item instances + reforge (WP10) ==');
+
+  const minorCharm = await getItemByName('Minor Charm');
+  if (!minorCharm) throw new Error('Minor Charm not found in catalog');
+
+  const instance = await insertInstance(userId, minorCharm.id);
+  assert(instance.owner_id === userId && instance.item_id === minorCharm.id, 'insertInstance creates an owned +0 instance');
+  assert(instance.reforge_level === 0, 'a fresh instance starts at reforge level 0');
+
+  const instances = await getInstancesForOwner(userId);
+  assert(instances.some((i) => i.id === instance.id), 'getInstancesForOwner lists the new instance');
+
+  const teamRows = await getTeamRows(userId);
+  const target = teamRows[0];
+
+  // Equip it (mirrors equipItem's core write -- both columns together).
+  await updateMonster(target.id, { equipped_item_id: minorCharm.id, equipped_instance_id: instance.id });
+  const equippedRow = await getMonsterRow(target.id);
+  const combatantBefore = await buildPlayerCombatant(equippedRow!);
+  const baselineRow = { ...equippedRow!, equipped_item_id: null, equipped_instance_id: null };
+  const combatantUnequipped = await buildPlayerCombatant(baselineRow);
+  assert(
+    combatantBefore.stats.atk > combatantUnequipped.stats.atk,
+    'equipping the +0 instance raises ATK over unequipped baseline'
+  );
+
+  // Reforge it to +6 (its common cap) and confirm the bonus compounds into combat stats.
+  await updateInstanceReforgeLevel(instance.id, 6);
+  const reforged = await getInstanceRow(instance.id);
+  assert(reforged?.reforge_level === 6, 'updateInstanceReforgeLevel persists the new level');
+
+  const combatantAfterReforge = await buildPlayerCombatant((await getMonsterRow(target.id))!);
+  // Minor Charm is +10% ATK; at +6 that's +10%*1.30 = +13%. (Not asserting
+  // combatantAfterReforge > combatantBefore here: at this monster's small
+  // ATK value, floor(atk*1.10) and floor(atk*1.13) can coincide -- the exact
+  // expected-value check below is the real proof the formula is applied.)
+  const expectedAtk = Math.floor(combatantUnequipped.stats.atk * 1.13);
+  assert(combatantAfterReforge.stats.atk === expectedAtk, `+6 Minor Charm produces the documented +13% ATK (expected ${expectedAtk}, got ${combatantAfterReforge.stats.atk})`);
+
+  // Unequip for cleanliness (cleanup() below deletes the monster/instances regardless).
+  await updateMonster(target.id, { equipped_item_id: null, equipped_instance_id: null });
+}
+
 async function cleanup(userId: string) {
   console.log('\n== cleanup ==');
   try {
@@ -806,6 +859,7 @@ async function cleanup(userId: string) {
     }
     await admin.from('monsters').delete().eq('owner_id', userId);
     await admin.from('inventory').delete().eq('owner_id', userId);
+    await admin.from('item_instances').delete().eq('owner_id', userId);
     await admin.from('profiles').delete().eq('id', userId);
     await admin.auth.admin.deleteUser(userId);
     console.log('  cleaned up test user, runs, monsters, inventory, profile');

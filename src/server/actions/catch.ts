@@ -144,6 +144,7 @@ export async function attemptCatch(
       teamSlot: null,
       currentHp: null,
       equippedItemId: null,
+      equippedInstanceId: null,
       isStarter: false,
       healingUntil: null,
       caughtAt: new Date().toISOString(),
